@@ -1,16 +1,13 @@
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import express, { type Request, type Response } from 'express';
-import { createApp } from './app.js';
-import { FamGuardStore } from './store.js';
+import { createApp, readSupabaseConfig } from './app.js';
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
-const dataFile = resolve(process.env.DATA_FILE ?? join(process.cwd(), 'data', 'famguard.json'));
 const publicDir = join(import.meta.dirname, '..', 'public');
 const indexHtml = join(publicDir, 'index.html');
 
-const store = new FamGuardStore({ file: dataFile });
-const app = createApp(store);
+const app = createApp();
 
 if (existsSync(indexHtml)) {
   app.use(express.static(publicDir, { maxAge: '1h', index: false }));
@@ -30,5 +27,11 @@ if (existsSync(indexHtml)) {
 }
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`FamGuard listening on http://0.0.0.0:${port} (data: ${dataFile})`);
+  console.log(`FamGuard listening on http://0.0.0.0:${port}`);
+  const { config, problems } = readSupabaseConfig();
+  if (config) {
+    console.log(`Supabase project: ${config.supabaseUrl} (publishable key configured)`);
+  } else {
+    console.warn(`Supabase not configured: ${problems.join(' ')}`);
+  }
 });
