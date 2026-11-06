@@ -18,8 +18,7 @@ RUN apk upgrade --no-cache
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
-RUN mkdir -p /app/data && chown -R node:node /app
+RUN chown -R node:node /app
 USER node
-ENV DATA_FILE=/app/data/famguard.json
 EXPOSE 3000
 CMD ["node", "dist/server/index.js"]
