@@ -4,7 +4,7 @@
     "lib": ["ES2023"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": ".",
+    "rootDir": "server",
     "outDir": "dist/server",
     "strict": true,
     "noUncheckedIndexedAccess": true,
