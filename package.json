@@ -5,7 +5,7 @@
   "type": "module",
   "description": "FamGuard - family safety and protection app",
   "engines": {
-    "node": ">=24"
+    "node": ">=20.19"
   },
   "scripts": {
     "dev:server": "tsx watch server/index.ts",
