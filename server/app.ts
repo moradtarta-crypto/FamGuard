@@ -20,6 +20,15 @@ function requireBody(req: Request): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
+function requireParam(req: Request, name: string): string {
+  const value: unknown = req.params[name];
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string' || raw.length === 0) {
+    throw new HttpError(404, 'Resource not found.');
+  }
+  return raw;
+}
+
 function requireString(value: unknown, field: string, maxLength: number): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new HttpError(400, `"${field}" is required and must be a non-empty string.`);
