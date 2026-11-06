@@ -1,0 +1,35 @@
+{
+  "name": "famguard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FamGuard - family safety and protection app",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "start": "node dist/server/index.js",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  }
+}
