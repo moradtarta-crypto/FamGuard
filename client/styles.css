@@ -442,3 +442,209 @@ button:focus-visible {
     flex: 1 1 100%;
   }
 }
+
+/* --- Authentication and account shell --- */
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 18px 40px rgba(19, 26, 43, 0.08);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.auth-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.auth-tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(19, 26, 43, 0.12);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.auth-submit {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.95rem;
+}
+
+.auth-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.banner-info {
+  background: #eef3ff;
+  border-color: #c9d8ff;
+  color: #1f3aa8;
+}
+
+.problem-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+
+.skeleton {
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eef1f7 25%, #f7f9fc 50%, #eef1f7 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-short {
+  height: 16px;
+  width: 60%;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.role-parent {
+  background: #eef3ff;
+  color: #1f3aa8;
+  border-color: #c9d8ff;
+}
+
+.role-child {
+  background: #eafaf2;
+  color: var(--safe);
+  border-color: #bfe9d7;
+}
+
+.role-unknown {
+  background: #f5f6fa;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.detail-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 10px;
+}
+
+.detail-list div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.detail-list dt {
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.detail-list dd {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
+.panel-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.panel-note code {
+  font-size: 0.82rem;
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
