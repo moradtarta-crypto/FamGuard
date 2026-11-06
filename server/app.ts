@@ -77,13 +77,13 @@ export function createApp(store: FamGuardStore) {
   });
 
   app.get('/api/members/:id', (req: Request, res: Response) => {
-    const member = store.getMember(req.params.id ?? '');
+    const member = store.getMember(requireParam(req, 'id'));
     if (!member) throw new HttpError(404, 'Family member not found.');
     res.json({ member, openAlerts: store.openAlertCount(member.id) });
   });
 
   app.patch('/api/members/:id/checkin', (req: Request, res: Response) => {
-    const member = store.checkIn(req.params.id ?? '');
+    const member = store.checkIn(requireParam(req, 'id'));
     if (!member) throw new HttpError(404, 'Family member not found.');
     res.json({ member });
   });
@@ -91,7 +91,7 @@ export function createApp(store: FamGuardStore) {
   app.patch('/api/members/:id/status', (req: Request, res: Response) => {
     const body = requireBody(req);
     const status: MemberStatus = requireEnum(body.status, 'status', MEMBER_STATUSES);
-    const member = store.setStatus(req.params.id ?? '', status);
+    const member = store.setStatus(requireParam(req, 'id'), status);
     if (!member) throw new HttpError(404, 'Family member not found.');
     res.json({ member });
   });
@@ -116,7 +116,7 @@ export function createApp(store: FamGuardStore) {
   });
 
   app.patch('/api/alerts/:id/acknowledge', (req: Request, res: Response) => {
-    const alert = store.acknowledgeAlert(req.params.id ?? '');
+    const alert = store.acknowledgeAlert(requireParam(req, 'id'));
     if (!alert) throw new HttpError(404, 'Alert not found.');
     res.json({ alert });
   });
