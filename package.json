@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.109.0",
     "express": "^5.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

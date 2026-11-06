@@ -1,338 +1,201 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  acknowledgeAlert,
-  checkInMember,
-  createAlert,
-  createMember,
-  fetchDashboard,
-  type Alert,
-  type AlertType,
-  type Member,
-  type MemberRole,
-  type Overview,
-} from './api';
+import { AuthProvider, useAuth } from './auth/AuthProvider';
+import { AuthScreen } from './auth/AuthScreen';
+import type { AccountRole } from './lib/roles';
 
-const STATUS_LABEL: Record<Member['status'], string> = {
-  safe: 'Safe',
-  needs_attention: 'Needs attention',
-  unknown: 'Awaiting check-in',
-};
-
-const ALERT_LABEL: Record<AlertType, string> = {
-  sos: 'SOS',
-  geofence: 'Geofence',
-  missed_checkin: 'Missed check-in',
-  low_battery: 'Low battery',
-};
-
-const ROLE_LABEL: Record<MemberRole, string> = {
+const ROLE_LABEL: Record<AccountRole, string> = {
   parent: 'Parent',
   child: 'Child',
-  guardian: 'Guardian',
 };
 
-function formatTime(iso: string | null): string {
-  if (!iso) return 'Never';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function Brand() {
+  return (
+    <div className="brand">
+      <span className="brand-mark" aria-hidden="true">
+        FG
+      </span>
+      <div>
+        <h1>FamGuard</h1>
+        <p className="brand-sub">Family safety and protection</p>
+      </div>
+    </div>
+  );
 }
 
-export default function App() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState<MemberRole>('child');
-
-  const [sosMemberId, setSosMemberId] = useState('');
-  const [sosType, setSosType] = useState<AlertType>('sos');
-  const [sosMessage, setSosMessage] = useState('');
-
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchDashboard();
-      setOverview(data.overview);
-      setMembers(data.members);
-      setAlerts(data.alerts);
-      setError(null);
-      setSosMemberId((current) => current || (data.members[0]?.id ?? ''));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not reach the FamGuard API.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const runAction = useCallback(
-    async (key: string, action: () => Promise<unknown>) => {
-      setBusyId(key);
-      setError(null);
-      try {
-        await action();
-        await load();
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'Action failed.');
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [load],
+function LoadingScreen() {
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <Brand />
+        <p className="muted" role="status">
+          Connecting to FamGuard…
+        </p>
+        <div className="skeleton" aria-hidden="true" />
+        <div className="skeleton skeleton-short" aria-hidden="true" />
+      </div>
+    </div>
   );
+}
 
-  const memberNames = useMemo(
-    () => new Map(members.map((member) => [member.id, member.name])),
-    [members],
+function ConfigErrorScreen() {
+  const { configError, configProblems, retryConfig } = useAuth();
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <Brand />
+        <div className="banner banner-error" role="alert">
+          <strong>Supabase is not configured.</strong>
+          <p>{configError}</p>
+          {configProblems.length > 0 ? (
+            <ul className="problem-list">
+              {configProblems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        <p className="muted">
+          Set the server environment variables and retry. Only the publishable key is used — never a
+          service-role key.
+        </p>
+        <button type="button" className="primary" onClick={retryConfig}>
+          Retry
+        </button>
+      </div>
+    </div>
   );
+}
 
-  const openAlerts = alerts.filter((alert) => alert.status === 'open');
-  const resolvedAlerts = alerts.filter((alert) => alert.status === 'acknowledged');
+function AccountShell() {
+  const { session, account, accountLoading, accountError, signOut, retryAccount } = useAuth();
 
-  const onCheckIn = (member: Member) => runAction(member.id, () => checkInMember(member.id));
-
-  const onAcknowledge = (alert: Alert) =>
-    runAction(alert.id, () => acknowledgeAlert(alert.id));
-
-  const onSubmitSos = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sosMemberId) return;
-    void runAction('sos', async () => {
-      await createAlert({ memberId: sosMemberId, type: sosType, message: sosMessage });
-      setSosMessage('');
-    });
+  const onSignOut = () => {
+    void signOut();
   };
 
-  const onSubmitMember = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void runAction('member', async () => {
-      await createMember({ name: newMemberName, role: newMemberRole });
-      setNewMemberName('');
-    });
-  };
+  const role = account?.role ?? null;
 
   return (
     <div className="page">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            FG
-          </span>
-          <div>
-            <h1>FamGuard</h1>
-            <p className="brand-sub">Family safety and protection</p>
-          </div>
-        </div>
+        <Brand />
         <div className="topbar-meta">
-          <span className="live-dot" aria-hidden="true" />
-          <span>{overview ? `Updated ${formatTime(overview.lastUpdated)}` : 'Connecting…'}</span>
-          <button type="button" className="ghost" onClick={() => void load()} disabled={loading}>
-            Refresh
+          {role ? (
+            <span className={`role-badge role-${role}`}>{ROLE_LABEL[role]}</span>
+          ) : (
+            <span className="role-badge role-unknown">Role not assigned</span>
+          )}
+          <span className="muted">{account?.displayName ?? session?.user.email ?? 'Signed in'}</span>
+          <button type="button" className="ghost" onClick={onSignOut}>
+            Sign out
           </button>
         </div>
       </header>
 
-      {error ? (
+      {accountError ? (
         <div className="banner banner-error" role="alert">
-          {error}
+          <strong>Could not load your account.</strong>
+          <p>{accountError}</p>
+          <p className="muted">
+            FamGuard reads only your own rows, so a database policy may be blocking this query. No
+            database change will be made from the app.
+          </p>
+          <button type="button" className="secondary" onClick={retryAccount}>
+            Try again
+          </button>
         </div>
       ) : null}
 
-      <section className="stats" aria-label="Family status overview">
-        <article className="stat">
-          <span className="stat-label">Family members</span>
-          <strong data-testid="stat-members">{overview?.totalMembers ?? '—'}</strong>
-        </article>
-        <article className="stat stat-safe">
-          <span className="stat-label">Safe</span>
-          <strong data-testid="stat-safe">{overview?.safeMembers ?? '—'}</strong>
-        </article>
-        <article className="stat stat-warn">
-          <span className="stat-label">Needs attention</span>
-          <strong data-testid="stat-attention">{overview?.needsAttention ?? '—'}</strong>
-        </article>
-        <article className="stat stat-alert">
-          <span className="stat-label">Open alerts</span>
-          <strong data-testid="stat-open-alerts">{overview?.openAlerts ?? '—'}</strong>
-        </article>
-      </section>
-
       <main className="layout">
-        <section className="card" aria-labelledby="members-heading">
+        <section className="card" aria-labelledby="account-heading">
           <div className="card-head">
-            <h2 id="members-heading">Family members</h2>
-            <span className="muted">{members.length} tracked</span>
+            <h2 id="account-heading">Your account</h2>
+            <span className="muted">Supabase authentication</span>
           </div>
-          {loading ? <p className="muted">Loading members…</p> : null}
-          <ul className="member-list">
-            {members.map((member) => (
-              <li key={member.id} className="member">
-                <div className="member-main">
-                  <div className="avatar" aria-hidden="true">
-                    {member.name.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="member-name">{member.name}</p>
-                    <p className="muted">
-                      {ROLE_LABEL[member.role]} · Last check-in {formatTime(member.lastCheckIn)}
-                    </p>
-                  </div>
-                </div>
-                <div className="member-actions">
-                  <span className={`pill pill-${member.status}`}>{STATUS_LABEL[member.status]}</span>
-                  {member.openAlerts > 0 ? (
-                    <span className="pill pill-count">{member.openAlerts} open</span>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => onCheckIn(member)}
-                    disabled={busyId === member.id}
-                  >
-                    {busyId === member.id ? 'Saving…' : 'Check in'}
-                  </button>
-                </div>
-              </li>
-            ))}
-            {!loading && members.length === 0 ? (
-              <li className="muted">No family members yet — add the first one below.</li>
-            ) : null}
-          </ul>
-
-          <form className="inline-form" onSubmit={onSubmitMember}>
-            <h3>Add a family member</h3>
-            <div className="inline-fields">
-              <input
-                type="text"
-                placeholder="Full name"
-                value={newMemberName}
-                onChange={(event) => setNewMemberName(event.target.value)}
-                maxLength={80}
-                required
-                aria-label="Full name"
-              />
-              <select
-                value={newMemberRole}
-                onChange={(event) => setNewMemberRole(event.target.value as MemberRole)}
-                aria-label="Role"
-              >
-                <option value="parent">Parent</option>
-                <option value="child">Child</option>
-                <option value="guardian">Guardian</option>
-              </select>
-              <button type="submit" className="secondary" disabled={busyId === 'member'}>
-                Add member
-              </button>
-            </div>
-          </form>
+          {accountLoading ? (
+            <div className="skeleton" aria-hidden="true" />
+          ) : (
+            <dl className="detail-list">
+              <div>
+                <dt>Signed in as</dt>
+                <dd>{account?.email ?? session?.user.email ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Interface</dt>
+                <dd>
+                  {role === 'parent'
+                    ? 'Parent account'
+                    : role === 'child'
+                      ? 'Child account'
+                      : 'Not assigned yet'}
+                </dd>
+              </div>
+              <div>
+                <dt>Role source</dt>
+                <dd>
+                  {account?.roleSource === 'membership'
+                    ? 'Family membership'
+                    : account?.roleSource === 'profile'
+                      ? 'Profile record'
+                      : 'No role found'}
+                </dd>
+              </div>
+              <div>
+                <dt>Profile record</dt>
+                <dd>{account?.profile ? 'Loaded' : 'Not created yet'}</dd>
+              </div>
+            </dl>
+          )}
         </section>
 
-        <section className="card" aria-labelledby="alerts-heading">
+        <section className="card" aria-labelledby="family-heading">
           <div className="card-head">
-            <h2 id="alerts-heading">Safety alerts</h2>
-            <span className="muted">{openAlerts.length} open</span>
+            <h2 id="family-heading">Family</h2>
+            <span className="muted">
+              {account ? `${account.memberships.length} membership${account.memberships.length === 1 ? '' : 's'}` : '—'}
+            </span>
           </div>
 
-          <ul className="alert-list">
-            {openAlerts.map((alert) => (
-              <li key={alert.id} className="alert alert-open">
-                <div className="alert-top">
-                  <span className="pill pill-open">{ALERT_LABEL[alert.type]}</span>
-                  <span className="muted">{formatTime(alert.createdAt)}</span>
-                </div>
-                <p className="alert-name">{memberNames.get(alert.memberId) ?? 'Unknown member'}</p>
-                <p className="alert-message">{alert.message}</p>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => onAcknowledge(alert)}
-                  disabled={busyId === alert.id}
-                >
-                  {busyId === alert.id ? 'Resolving…' : 'Acknowledge'}
-                </button>
-              </li>
-            ))}
-            {!loading && openAlerts.length === 0 ? (
-              <li className="empty">Everyone is accounted for. No open alerts.</li>
-            ) : null}
-          </ul>
-
-          {resolvedAlerts.length > 0 ? (
-            <div className="resolved">
-              <h3>Recently resolved</h3>
-              <ul className="alert-list">
-                {resolvedAlerts.slice(0, 5).map((alert) => (
-                  <li key={alert.id} className="alert alert-done">
-                    <div className="alert-top">
-                      <span className="pill pill-acknowledged">{ALERT_LABEL[alert.type]}</span>
-                      <span className="muted">{formatTime(alert.acknowledgedAt)}</span>
-                    </div>
-                    <p className="alert-name">{memberNames.get(alert.memberId) ?? 'Unknown member'}</p>
-                    <p className="alert-message">{alert.message}</p>
-                  </li>
-                ))}
-              </ul>
+          {accountLoading ? (
+            <div className="skeleton" aria-hidden="true" />
+          ) : account?.familyId ? (
+            <div className="panel-note">
+              <p>
+                Connected to family <code>{account.familyId}</code>.
+              </p>
+              <p className="muted">
+                Member list, chat, SOS, location and zones are the next implementation stage.
+              </p>
             </div>
-          ) : null}
-
-          <form className="inline-form" onSubmit={onSubmitSos}>
-            <h3>Raise an alert</h3>
-            <div className="inline-fields">
-              <select
-                value={sosMemberId}
-                onChange={(event) => setSosMemberId(event.target.value)}
-                aria-label="Member"
-                required
-              >
-                <option value="">Select member</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={sosType}
-                onChange={(event) => setSosType(event.target.value as AlertType)}
-                aria-label="Alert type"
-              >
-                <option value="sos">SOS</option>
-                <option value="geofence">Geofence</option>
-                <option value="missed_checkin">Missed check-in</option>
-                <option value="low_battery">Low battery</option>
-              </select>
-              <input
-                type="text"
-                placeholder="What happened?"
-                value={sosMessage}
-                onChange={(event) => setSosMessage(event.target.value)}
-                maxLength={280}
-                required
-                aria-label="Alert message"
-              />
-              <button type="submit" className="danger" disabled={busyId === 'sos'}>
-                Send alert
-              </button>
+          ) : (
+            <div className="empty">
+              <p>You are not part of a family yet.</p>
+              <p className="muted">
+                Creating a family and joining with an invite are the next implementation stage.
+              </p>
             </div>
-          </form>
+          )}
         </section>
       </main>
 
       <footer className="footer">
-        <span>FamGuard · check-ins and safety alerts for your household</span>
+        <span>FamGuard · live data from your Supabase project, no demo records</span>
       </footer>
     </div>
+  );
+}
+
+function Screen() {
+  const { phase } = useAuth();
+  if (phase === 'loading') return <LoadingScreen />;
+  if (phase === 'config-error') return <ConfigErrorScreen />;
+  if (phase === 'signed-out') return <AuthScreen />;
+  return <AccountShell />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Screen />
+    </AuthProvider>
   );
 }
