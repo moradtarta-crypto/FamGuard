@@ -55,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountAttempt, setAccountAttempt] = useState(0);
+  // The account whose rows the shared screen cache currently holds. A change here means the
+  // cache must be dropped before anything can be read for the new session.
+  const cachedForUser = useRef<string | null>(null);
 
   // 1. Load the browser-safe Supabase settings, then restore any stored session.
   useEffect(() => {
