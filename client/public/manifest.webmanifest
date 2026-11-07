@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "FamGuard — Family Safety",
+  "short_name": "FamGuard",
+  "description": "Family safety, location sharing and SOS alerts.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#10243a",
+  "theme_color": "#10243a",
+  "icons": [
+    {
+      "src": "/icons/famguard.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
