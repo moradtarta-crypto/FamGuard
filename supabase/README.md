@@ -14,7 +14,7 @@ reports the affected features honestly instead of pretending they succeed.
 
 | Step | File | Purpose |
 | --- | --- | --- |
-| 1 | `audit/capture_current_definitions.sql` | **Read-only backup.** Records the current policies, function definitions, attributes and grants. Save the output. This is what makes rollback exact. |
+| 1 | `audit/capture_current_definitions.sql` | **Read-only backup.** Records the current policies, function definitions, attributes and grants. Save the output. It is required to restore the exact prior policy and helper attributes manually. |
 | 2 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
 | 3 | `migrations/20261107_0002_helper_function_hardening.sql` | Verifies `is_family_member` / `is_parent_in_family` / `is_child_in_family` bodies, then pins `SECURITY DEFINER` + `search_path` (fixes recursive-RLS risk). |
 
