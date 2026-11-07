@@ -165,7 +165,7 @@ export function MemberLocationsPanel({
 }) {
   const viewerRole = account.memberships.find((membership) => membership.family_id === familyId)?.role ?? null;
   const latest = useResource(
-    `locations:${familyId}:${role ?? 'unknown'}`,
+    `locations:${familyId}:${viewerRole ?? 'unknown'}`,
     () => loadLatestLocations(client, familyId, viewerRole),
     20000,
     LOCATION_CACHE_MS,
@@ -446,7 +446,7 @@ export function ZonesPanel({
 }) {
   const zones = useResource(`zones:${familyId}`, () => loadZones(client, familyId), 30000);
   const latest = useResource(
-    `locations:${familyId}`,
+    `locations:${familyId}:${role ?? 'unknown'}`,
     () => loadLatestLocations(client, familyId, role),
     30000,
     LOCATION_CACHE_MS,
