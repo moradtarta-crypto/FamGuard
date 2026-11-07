@@ -57,12 +57,16 @@ export function useResource<T>(
       setState({ key, value: emptyState });
     }
 
+    // Capture the loader for this key. An interval from the previous key must never
+    // pick up a new render's loader during the brief effect-cleanup window.
+    const activeLoader = loaderRef.current;
+
     // A manual refresh must reach the database; later interval runs may reuse a result.
     let bypassShared = forceNextRun.current;
     forceNextRun.current = false;
 
     const run = async () => {
-      const result = await loadShared(key, loaderRef.current, bypassShared ? 0 : maxAgeMs);
+      const result = await loadShared(key, activeLoader, bypassShared ? 0 : maxAgeMs);
       bypassShared = false;
       if (!active) return;
 
