@@ -78,8 +78,13 @@ export async function loadShared<T>(
   }
 }
 
-/** Drops every shared result. Used by tests and when the signed-in account changes. */
+/**
+ * Drops every shared result. Called by tests and whenever the signed-in account changes, so
+ * rows loaded for one session can never be handed to the next one — including a request that
+ * was still in flight when the account changed.
+ */
 export function resetSharedCache(): void {
+  generation += 1;
   stored.clear();
   inFlight.clear();
 }
