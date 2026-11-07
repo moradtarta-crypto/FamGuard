@@ -10,11 +10,10 @@ import {
   loadLatestLocations,
   loadSosEvents,
   loadZones,
-  raiseSos,
   setZoneEnabled,
   shareLocation,
 } from '../lib/data';
-import { batteryPercent, currentPosition, currentPositionForSos } from '../lib/geolocation';
+import { batteryPercent, currentPosition } from '../lib/geolocation';
 import {
   distanceMeters,
   formatBattery,
@@ -25,10 +24,34 @@ import {
 } from '../lib/format';
 import { isZoneKind } from '../lib/schema';
 import type { AccountRole, ZoneKind } from '../lib/schema';
+import { submitSos } from '../lib/sos';
 
 function refreshedLabel(updatedAt: number | null): string {
   if (!updatedAt) return 'not refreshed yet';
   return `updated ${formatRelative(new Date(updatedAt).toISOString())}`;
+}
+
+/**
+ * Shown when `family_members` returns no rows for a family this account belongs to. That
+ * result is ambiguous — the family may be empty, or the rows may not be visible to this
+ * account — so the screen must not present it as "nobody is sharing".
+ */
+const MEMBERSHIP_UNVERIFIED_NOTE =
+  'Could not verify the family member list, so location sharing cannot be confirmed.';
+
+/**
+ * The safety cards below all need the same latest-location rows. A short sharing window
+ * keeps them on one request per refresh instead of three, while staying far below the
+ * polling interval so a shared row is never presented as fresher than it is.
+ */
+const LOCATION_CACHE_MS = 5000;
+
+function MembershipUnverified() {
+  return (
+    <Banner tone="warn" title="Member list could not be verified">
+      {MEMBERSHIP_UNVERIFIED_NOTE} An empty member list is not a confirmed “no updates yet”.
+    </Banner>
+  );
 }
 
 /* --------------------------------------------------------------- location */
@@ -46,8 +69,11 @@ export function ShareLocationCard({
     `locations:${familyId}`,
     () => loadLatestLocations(client, familyId),
     20000,
+    LOCATION_CACHE_MS,
   );
-  const mine = latest.data?.find((row) => row.child_user_id === account.userId) ?? null;
+  const rows = latest.data?.rows ?? [];
+  const membershipUnverified = latest.data?.membership === 'unverified';
+  const mine = rows.find((row) => row.child_user_id === account.userId) ?? null;
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +131,8 @@ export function ShareLocationCard({
           <DataRow label="Accuracy" value={formatDistance(mine.accuracy_m)} />
           <DataRow label="Battery" value={formatBattery(mine.battery_percent)} />
         </>
+      ) : membershipUnverified ? (
+        <MembershipUnverified />
       ) : (
         <EmptyState title="You have not shared a location yet">
           Sharing asks the browser for permission once, then stores a single row in
@@ -133,6 +161,7 @@ export function MemberLocationsPanel({
     `locations:${familyId}`,
     () => loadLatestLocations(client, familyId),
     20000,
+    LOCATION_CACHE_MS,
   );
   const members = useResource(
     `safety-members:${familyId}`,
@@ -148,7 +177,8 @@ export function MemberLocationsPanel({
     );
   }
 
-  const rows = latest.data ?? [];
+  const rows = latest.data?.rows ?? [];
+  const membershipUnverified = latest.data?.membership === 'unverified';
 
   return (
     <SectionCard
@@ -165,8 +195,9 @@ export function MemberLocationsPanel({
           {latest.error}
         </Banner>
       ) : null}
+      {membershipUnverified ? <MembershipUnverified /> : null}
       {latest.loading && !latest.data ? <SkeletonRows count={2} /> : null}
-      {!latest.loading && !latest.error && rows.length === 0 ? (
+      {!latest.loading && !latest.error && !membershipUnverified && rows.length === 0 ? (
         <EmptyState title="No location updates yet">
           Location rows appear here after a family member shares their position.
         </EmptyState>

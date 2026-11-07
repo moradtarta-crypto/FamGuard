@@ -381,6 +381,9 @@ export async function loadMessages(
     .select(COLUMNS.message)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
+    // Ties on created_at need a total order, otherwise both the window boundary and the
+    // rendered order can change between polls.
+    .order('id', { ascending: false })
     .limit(limit);
 
   if (error) fail(error, 'read messages');
