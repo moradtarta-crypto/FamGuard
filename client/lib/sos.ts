@@ -46,3 +46,42 @@ export async function submitSos(
 
   return { event, coordinates };
 }
+
+/** Shown when the alert was stored but no position could be read for it. */
+export const SOS_WITHOUT_LOCATION_WARNING =
+  'The alert was saved, but your location could not be read, so your family cannot see where you are. Call them or share your location manually.';
+
+export type SosOutcome =
+  | { ok: true; submission: SosSubmission; warning: string | null }
+  | { ok: false; error: string };
+
+/**
+ * The handler behind the SOS button.
+ *
+ * A stored alert is never reported as a failure: `submitSos` only rejects when the database
+ * refused the row, so a missing position becomes a warning attached to a success instead of
+ * an error. Real database failures still come back as `ok: false` with the database message,
+ * so the screen can keep showing them as errors.
+ */
+export async function sendSosAlert(
+  client: SupabaseClient,
+  request: NewSosRequest,
+  submit: (client: SupabaseClient, request: NewSosRequest) => Promise<SosSubmission> = submitSos,
+): Promise<SosOutcome> {
+  try {
+    const submission = await submit(client, request);
+    return {
+      ok: true,
+      submission,
+      warning: submission.coordinates === null ? SOS_WITHOUT_LOCATION_WARNING : null,
+    };
+  } catch (cause) {
+    return {
+      ok: false,
+      error:
+        cause instanceof Error && cause.message.length > 0
+          ? cause.message
+          : 'Could not send the SOS alert.',
+    };
+  }
+}
