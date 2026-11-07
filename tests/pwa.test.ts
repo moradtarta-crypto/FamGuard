@@ -27,6 +27,8 @@ test('PWA manifest declares an installable standalone app and a valid icon', asy
         icon.purpose?.includes('maskable'),
     ),
   );
+  const icon = await readFile(new URL('../client/public/icons/famguard.svg', import.meta.url), 'utf8');
+  assert.match(icon, /width="512" height="512" viewBox="0 0 512 512"/);
 });
 
 test('PWA service worker never caches API or cross-origin responses', async () => {
