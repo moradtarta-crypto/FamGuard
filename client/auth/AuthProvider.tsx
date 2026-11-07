@@ -104,6 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!client) return;
     const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+      // Rows loaded for one account must never be handed to the next one, so the shared
+      // screen cache is dropped whenever the authenticated user changes — including a
+      // sign-out, where the new id is `null`.
+      const nextUserId = nextSession?.user?.id ?? null;
+      if (cachedForUser.current !== nextUserId) {
+        resetSharedCache();
+        cachedForUser.current = nextUserId;
+      }
       setSession(nextSession);
     });
     return () => {
