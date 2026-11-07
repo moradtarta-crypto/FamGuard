@@ -74,6 +74,36 @@ test('config endpoint rejects an invalid project URL', async () => {
   assert.match(response.body.problems.join(' '), /SUPABASE_URL is not a valid URL/);
 });
 
+test('config endpoint rejects remote Supabase URLs over plain HTTP', async () => {
+  const response = await request(
+    createApp({ SUPABASE_URL: 'http://supabase.example.com', SUPABASE_PUBLISHABLE_KEY: ANON_KEY }),
+  )
+    .get('/api/config')
+    .expect(503);
+
+  assert.match(response.body.problems.join(' '), /must use HTTPS/i);
+});
+
+test('config endpoint allows local HTTP for Supabase development', async () => {
+  const response = await request(
+    createApp({ SUPABASE_URL: 'http://127.0.0.1:54321', SUPABASE_PUBLISHABLE_KEY: ANON_KEY }),
+  )
+    .get('/api/config')
+    .expect(200);
+
+  assert.equal(response.body.supabaseUrl, 'http://127.0.0.1:54321');
+});
+
+test('config endpoint rejects credentials embedded in the Supabase URL', async () => {
+  const response = await request(
+    createApp({ SUPABASE_URL: 'https://user:password@supabase.example.com', SUPABASE_PUBLISHABLE_KEY: ANON_KEY }),
+  )
+    .get('/api/config')
+    .expect(503);
+
+  assert.match(response.body.problems.join(' '), /must not contain embedded credentials/i);
+});
+
 test('keyRejectionReason accepts publishable keys', () => {
   assert.equal(keyRejectionReason(ANON_KEY), null);
   assert.equal(keyRejectionReason('sb_publishable_abc123'), null);
