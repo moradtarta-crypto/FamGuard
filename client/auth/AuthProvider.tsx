@@ -20,6 +20,7 @@ export interface SignUpResult {
 
 export interface AuthContextValue {
   phase: AuthPhase;
+  client: SupabaseClient | null;
   session: Session | null;
   account: AccountContext | null;
   accountLoading: boolean;
@@ -187,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       phase,
+      client,
       session,
       account,
       accountLoading,
@@ -201,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       phase,
+      client,
       session,
       account,
       accountLoading,
