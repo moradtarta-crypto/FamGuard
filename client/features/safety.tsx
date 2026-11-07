@@ -278,22 +278,11 @@ export function SosPanel({
     setPending(true);
     setError(null);
     try {
-      let latitude: number | null = null;
-      let longitude: number | null = null;
-      try {
-        // Bounded to ~3 seconds and never cached: an alert must not wait on GPS.
-        const position = await currentPositionForSos();
-        latitude = position.latitude;
-        longitude = position.longitude;
-      } catch {
-        // An SOS is still recorded without coordinates; the alert itself must not be lost.
-      }
-
-      await raiseSos(client, {
+      // Bounded to ~3 seconds and never cached. A denied or unavailable sensor only drops
+      // the coordinates; the alert itself must still be recorded.
+      await submitSos(client, {
         familyId,
         childUserId: account.userId,
-        latitude,
-        longitude,
         note: note.trim() ? note.trim() : null,
       });
       setNote('');
@@ -425,9 +414,11 @@ export function ZonesPanel({
     `locations:${familyId}`,
     () => loadLatestLocations(client, familyId),
     30000,
+    LOCATION_CACHE_MS,
   );
 
-  const mine = latest.data?.find((row) => row.child_user_id === account.userId) ?? null;
+  const mine = latest.data?.rows.find((row) => row.child_user_id === account.userId) ?? null;
+  const membershipUnverified = latest.data?.membership === 'unverified';
 
   const [label, setLabel] = useState('');
   const [kind, setKind] = useState<ZoneKind>('safe');
@@ -519,6 +510,13 @@ export function ZonesPanel({
         </Banner>
       ) : null}
       {toggleError ? <Banner tone="error">{toggleError}</Banner> : null}
+
+      {membershipUnverified ? (
+        <Note>
+          Distances are hidden because the family member list could not be verified, so the
+          latest location for this account cannot be confirmed.
+        </Note>
+      ) : null}
 
       {zones.loading && !zones.data ? <SkeletonRows count={2} /> : null}
       {!zones.loading && !zones.error && (zones.data ?? []).length === 0 ? (
