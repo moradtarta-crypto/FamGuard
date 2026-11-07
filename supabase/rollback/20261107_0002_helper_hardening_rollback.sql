@@ -1,4 +1,4 @@
--- FamGuard — manual rollback notes for 20261107_0002_helper_function_hardening.sql.
+-- FamGuard — manual rollback notes for 20261107_0003_helper_function_hardening_apply.sql.
 --
 -- DO NOT RUN THIS FILE AS-IS.
 --
