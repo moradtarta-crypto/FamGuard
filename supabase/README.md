@@ -14,12 +14,14 @@ reports the affected features honestly instead of pretending they succeed.
 
 | Step | File | Purpose |
 | --- | --- | --- |
-| 1 | `audit/capture_current_definitions.sql` | **Read-only backup.** Records the current policies, function definitions, attributes and grants. Save the output. It is required to restore the exact prior policy and helper attributes manually. |
-| 2 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
-| 3 | `migrations/20261107_0002_helper_function_hardening.sql` | Verifies `is_family_member` / `is_parent_in_family` / `is_child_in_family` bodies, then pins `SECURITY DEFINER` + `search_path` (fixes recursive-RLS risk). |
+| 1 | `audit/capture_current_definitions.sql` | **Read-only backup.** Records current policies, function definitions, attributes and grants. Save the output for manual rollback. |
+| 2 | `migrations/20261107_0002_helper_function_hardening.sql` | **Read-only verification.** Displays the three membership helper definitions and security attributes. Inspect them before proceeding. |
+| 3 | `migrations/20261107_0003_helper_function_hardening_apply.sql` | Changes helper attributes only, and is blocked until the operator explicitly confirms that the bodies were reviewed. |
+| 4 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
 
-Run each migration in the Supabase SQL editor as a single transaction. Each file ends with
-`commit;` and begins with `begin;`, so a syntax error aborts the whole step.
+Run only the two `*_apply` migration files in the Supabase SQL editor as single transactions.
+The `0002` verification file is SELECT-only and must be run separately. Do not apply 0003
+until its three helper bodies have been reviewed and the confirmation line deliberately enabled.
 
 ## What each change does
 
@@ -48,12 +50,16 @@ Run each migration in the Supabase SQL editor as a single transaction. Each file
 9. `subscriptions` — the existing parent-owned SELECT policy is preserved. Safe column grants
    remain limited to status/plan/date metadata; payment identifiers are not exposed.
 
-`20261107_0002`
+`20261107` verification
 
-10. Sets `SECURITY DEFINER`, `STABLE` and `search_path = public, pg_temp` on the three
-    membership helpers so they no longer re-enter `family_members` RLS (which raises
-    `42P17 infinite recursion` for an invoker helper) and cannot be shadowed by a caller.
-    Bodies are only replaced if section A of that file shows a wrong role check.
+10. Read-only display of the helper definitions, exact signatures, SECURITY mode,
+    volatility and function settings. Review the bodies before applying any hardening.
+
+`20261107_0003`
+
+11. After review, sets `SECURITY DEFINER`, `STABLE` and
+    `search_path = public, pg_temp` on the exact three helper signatures. It does not
+    change their bodies or owners. A deliberate confirmation line must be enabled first.
 
 ## Verify after applying
 
@@ -91,8 +97,8 @@ the invite list shows history, and the parent subscription panel renders.
 it never restores broad table-wide SELECT/UPDATE. It drops the replacement profile policy,
 so restore the exact prior CREATE POLICY statement from the saved audit output before users
 return. `rollback/20261107_0002_helper_hardening_rollback.sql` is intentionally a manual note
-file: restore exact captured SECURITY mode, volatility and search_path values. Neither rollback
-may be guessed or run blindly.
+file for 0003: restore exact captured SECURITY mode, volatility and search_path values.
+Neither rollback may be guessed or run blindly.
 
 ## Application behaviour before the migrations are applied
 
