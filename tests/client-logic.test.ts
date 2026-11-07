@@ -106,11 +106,12 @@ test('distanceMeters is a real haversine over the given coordinates', () => {
 });
 
 test('format helpers render honest placeholders instead of fake values', () => {
-  assert.equal(formatBattery(null), '—');
-  assert.equal(formatBattery(87), '87%');
+  assert.equal(formatBattery(null), 'battery unknown');
+  assert.equal(formatBattery(undefined), 'battery unknown');
+  assert.equal(formatBattery(87), 'battery 87%');
   assert.equal(initials('Ada Lovelace'), 'AL');
   assert.equal(initials('   '), '?');
-  assert.equal(formatCoordinates(52.52, 13.405), '52.5200, 13.4050');
+  assert.equal(formatCoordinates(52.52, 13.405), '52.52000, 13.40500');
 });
 
 test('roleForFamily resolves the role from the selected membership only', () => {
