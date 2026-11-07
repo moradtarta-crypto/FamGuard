@@ -425,31 +425,14 @@ export async function createConversation(
 
   if (!isMissingRpc(error)) fail(error, 'create the family conversation');
 
-  // The database has not been migrated yet. Keep the previous behaviour so the failure is
-  // explicit and actionable instead of pretending the chat works.
-  const legacy = await client.from('conversations').insert({ family_id: familyId });
-  if (legacy.error) {
-    const refused = legacy.error.code === '42501' || /row-level security/i.test(legacy.error.message ?? '');
-    if (refused) {
-      throw new DataError(
-        'Could not start the family chat: the database does not allow creating conversations yet. ' +
-          'Apply the FamGuard security migration (supabase/migrations/20261107_0001_security_repair.sql).',
-        legacy.error.code ?? null,
-        false,
-      );
-    }
-    fail(legacy.error, 'create the family conversation');
-  }
-
-  const canonical = await loadConversation(client, familyId);
-  if (!canonical) {
-    throw new DataError(
-      'Could not start the family chat: the conversation could not be read back after it was created.',
-      null,
-      false,
-    );
-  }
-  return canonical;
+  // Direct INSERT is intentionally not a fallback: conversations has no INSERT policy.
+  // A missing RPC means the required database migration is not installed yet.
+  throw new DataError(
+    'Could not start the family chat: the required database function is not installed. ' +
+      'A project owner must review and apply supabase/migrations/20261107_0001_security_repair.sql.',
+    error.code ?? null,
+    false,
+  );
 }
 
 export async function loadMessages(
