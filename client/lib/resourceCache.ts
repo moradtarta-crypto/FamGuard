@@ -18,6 +18,13 @@ const MAX_ENTRIES = 32;
 const stored = new Map<string, { result: SharedResult<unknown>; storedAt: number }>();
 const inFlight = new Map<string, Promise<SharedResult<unknown>>>();
 
+/**
+ * Bumped by `resetSharedCache()`. A request captures the value it started under, so a load
+ * that was already running when the signed-in account changed cannot write its rows back
+ * into the cache afterwards.
+ */
+let generation = 0;
+
 function describe(cause: unknown): string {
   return cause instanceof Error && cause.message.length > 0
     ? cause.message
