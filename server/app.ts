@@ -47,6 +47,9 @@ export function keyRejectionReason(key: string): string | null {
   if (trimmed.split('.').length === 3) {
     const payload = decodeJwtPayload(trimmed);
     if (!payload) return 'SUPABASE_PUBLISHABLE_KEY is not a valid legacy anon key.';
+    if (payload.role === 'service_role') {
+      return 'SUPABASE_PUBLISHABLE_KEY is a service-role token. Use the publishable key only.';
+    }
     if (payload.role !== 'anon') {
       return 'SUPABASE_PUBLISHABLE_KEY must have the anon role. Use the publishable key only.';
     }
