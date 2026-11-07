@@ -58,13 +58,17 @@ export async function loadShared<T>(
     }
   })();
 
+  // Captured before the request runs: if the account changes while it is in flight, the
+  // rows it returns belong to the previous session and must not be stored.
+  const startedIn = generation;
+
   inFlight.set(key, request as Promise<SharedResult<unknown>>);
 
   try {
     const result = await request;
     // Only successes are kept: caching a failure would keep a recovered screen showing an
     // old error and would delay its retry.
-    if (result.ok && maxAgeMs > 0) {
+    if (result.ok && maxAgeMs > 0 && startedIn === generation) {
       if (stored.size >= MAX_ENTRIES) stored.clear();
       stored.set(key, { result: result as SharedResult<unknown>, storedAt: result.updatedAt });
     }
