@@ -451,6 +451,18 @@ export function ZonesPanel({
     30000,
     LOCATION_CACHE_MS,
   );
+  const members = useResource(
+    `safety-members:${familyId}`,
+    () => loadFamilyMembers(client, familyId),
+    60000,
+  );
+  const memberNames = new Map<string, string>();
+  for (const entry of members.data?.members ?? []) {
+    memberNames.set(
+      entry.member.user_id,
+      entry.profile?.display_name?.trim() || `Member ${entry.member.user_id.slice(0, 8)}`,
+    );
+  }
 
   const mine = latest.data?.rows.find((row) => row.child_user_id === account.userId) ?? null;
   const membershipUnverified = latest.data?.membership === 'unverified';
@@ -582,6 +594,16 @@ export function ZonesPanel({
                 )
               : null;
             const inside = distance !== null ? distance <= zone.radius_m : null;
+            const childDistances = role === 'parent'
+              ? (latest.data?.rows ?? []).map((row) => ({
+                  userId: row.child_user_id,
+                  name: memberNames.get(row.child_user_id) ?? `Member ${row.child_user_id.slice(0, 8)}`,
+                  distance: distanceMeters(
+                    { latitude: row.latitude, longitude: row.longitude },
+                    { latitude: zone.center_lat, longitude: zone.center_lng },
+                  ),
+                }))
+              : [];
 
             return (
               <li key={zone.id}>
@@ -589,9 +611,15 @@ export function ZonesPanel({
                   <strong>{zone.label}</strong>
                   <div className="muted small">
                     {zoneKind === 'danger' ? 'Danger' : 'Safe'} · radius {formatDistance(zone.radius_m)}
-                    {inside !== null && distance !== null
-                      ? ` · you are ${formatDistance(distance)} from the centre (${inside ? 'inside' : 'outside'})`
-                      : ''}
+                    {role === 'parent'
+                      ? latest.data?.membership === 'verified'
+                        ? childDistances.length > 0
+                          ? ` · ${childDistances.map((item) => `${item.name}: ${formatDistance(item.distance)} (${item.distance <= zone.radius_m ? 'inside' : 'outside'})`).join(' · ')}`
+                          : ' · no child location shared yet'
+                        : ' · child distances unavailable'
+                      : inside !== null && distance !== null
+                        ? ` · you are ${formatDistance(distance)} from the centre (${inside ? 'inside' : 'outside'})`
+                        : ''}
                   </div>
                   <div className="muted small">
                     Entry alerts {zone.alerts_on_entry ? 'on' : 'off'} · exit alerts{' '}
