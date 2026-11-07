@@ -125,6 +125,14 @@ function eqValue(calls: Calls, column: string): unknown {
   return pair ? (pair[1] as [string, unknown])[1] : undefined;
 }
 
+/** The value of a `neq(column, value)` filter. */
+function neqValue(calls: Calls, column: string): unknown {
+  const pair = calls.find(
+    ([name, value]) => name === 'neq' && Array.isArray(value) && value[0] === column,
+  );
+  return pair ? (pair[1] as [string, unknown])[1] : undefined;
+}
+
 /** Every `order(...)` the query sent, in the order it was applied. */
 function orders(calls: Calls): Array<[string, { ascending?: boolean }]> {
   return calls
