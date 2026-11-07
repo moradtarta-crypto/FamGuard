@@ -282,13 +282,21 @@ export function InvitesPanel({ client, familyId }: { client: SupabaseClient; fam
 
       {invites.loading && !invites.data ? <SkeletonRows count={2} /> : null}
 
-      {invites.data && invites.data.length === 0 ? (
-        <EmptyState title="No invites yet">Create one to add a family member.</EmptyState>
+      {invites.data && invites.data.rows.length === 0 ? (
+        invites.data.visibility === 'unverified' ? (
+          <Banner tone="warn" title="Invite history could not be confirmed">
+            This account is not allowed to read <code>family_invites</code>, so an empty list here
+            does not mean the family has no invites. Creating an invite still works: the token is
+            returned directly by the RPC.
+          </Banner>
+        ) : (
+          <EmptyState title="No invites yet">Create one to add a family member.</EmptyState>
+        )
       ) : null}
 
-      {invites.data && invites.data.length > 0 ? (
+      {invites.data && invites.data.rows.length > 0 ? (
         <ul className="plain-list">
-          {invites.data.map((invite) => {
+          {invites.data.rows.map((invite) => {
             const consumed = invite.consumed_at !== null || invite.consumed_by !== null;
             return (
               <li key={invite.id}>
