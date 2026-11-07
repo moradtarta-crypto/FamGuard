@@ -61,16 +61,16 @@ export function ChatPanel({
       {conversation.loading && !conversation.data ? <SkeletonRows count={3} /> : null}
 
       {!conversation.loading && !conversation.error && !conversation.data ? (
-        <EmptyState
-          title="No family conversation yet"
-          action={
+        <EmptyState title="No family conversation yet">
+          <span>
+            Your schema allows one conversation per family. FamGuard does not create one
+            automatically; the first parent or child in the family can start it here.
+          </span>
+          <span className="empty-action">
             <button type="button" className="primary" onClick={onCreate} disabled={pending}>
               {pending ? 'Starting…' : 'Start family chat'}
             </button>
-          }
-        >
-          Your schema allows one conversation per family. FamGuard does not create one automatically;
-          the first parent or child in the family can start it here.
+          </span>
         </EmptyState>
       ) : null}
 
