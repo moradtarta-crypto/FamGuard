@@ -566,7 +566,11 @@ test('M-4 an SOS is recorded without coordinates when the position lookup fails'
   );
 
   assert.equal(submission.coordinates, null);
-  assert.equal(submission.event.id, 'sos-1');
+  // No row is read back (the child cannot SELECT sos_events), so the confirmation describes
+  // what was written rather than quoting an id the writer is not allowed to see.
+  assert.equal(submission.event.familyId, 'fam-1');
+  assert.equal(submission.event.childUserId, 'child-1');
+  assert.equal(submission.event.hasCoordinates, false);
   assert.equal(inserted?.latitude, null);
   assert.equal(inserted?.longitude, null);
   assert.equal(inserted?.note, 'help');
