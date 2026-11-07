@@ -39,9 +39,17 @@ export function keyRejectionReason(key: string): string | null {
   if (trimmed.toLowerCase().startsWith('service_role')) {
     return 'SUPABASE_PUBLISHABLE_KEY looks like a service-role key. Use the publishable key only.';
   }
-  const payload = decodeJwtPayload(trimmed);
-  if (payload && payload.role === 'service_role') {
-    return 'SUPABASE_PUBLISHABLE_KEY is a service-role token. Use the publishable key only.';
+  // New Supabase publishable keys use this prefix and are safe for browser use.
+  if (trimmed.startsWith('sb_publishable_')) return null;
+
+  // Legacy anon keys are JWTs. Do not accidentally expose an authenticated or other
+  // elevated JWT as the browser's project key.
+  if (trimmed.split('.').length === 3) {
+    const payload = decodeJwtPayload(trimmed);
+    if (!payload) return 'SUPABASE_PUBLISHABLE_KEY is not a valid legacy anon key.';
+    if (payload.role !== 'anon') {
+      return 'SUPABASE_PUBLISHABLE_KEY must have the anon role. Use the publishable key only.';
+    }
   }
   return null;
 }
