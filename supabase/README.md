@@ -19,8 +19,8 @@ reports the affected features honestly instead of pretending they succeed.
 | 3 | `migrations/20261107_0003_helper_function_hardening_apply.sql` | Changes helper attributes only, and is blocked until the operator explicitly confirms that the bodies were reviewed. |
 | 4 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
 
-Run only the two `*_apply` migration files in the Supabase SQL editor as single transactions.
-The `0002` verification file is SELECT-only and must be run separately. Do not apply 0003
+Run `0003_helper_function_hardening_apply.sql` and then `0001_security_repair.sql` in the Supabase SQL editor as separate transactions.
+The `0002` verification file is SELECT-only and must be run separately first. Do not apply 0003
 until its three helper bodies have been reviewed and the confirmation line deliberately enabled.
 
 ## What each change does
