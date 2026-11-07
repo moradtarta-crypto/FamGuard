@@ -120,7 +120,87 @@ revoke all on function public.ensure_family_conversation(uuid) from public;
 grant execute on function public.ensure_family_conversation(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3. messages: a recipient may only write read_at
+-- 3. Least-privilege direct writes for the existing client operations
+--
+--    Family and conversation creation already runs through SECURITY DEFINER RPCs.
+--    The browser only reads those tables, so it must not have direct write privileges.
+--    Profile upsert writes only the caller's own id/name/language. Location sharing writes
+--    only child location fields; id and received_at remain database-controlled.
+--    Family chat inserts only text fields; read receipts remain the sole UPDATE column.
+-- ---------------------------------------------------------------------------
+
+-- Families: reads only; creation is handled by create_family().
+revoke insert, update, delete on table public.families from public;
+revoke insert, update, delete on table public.families from anon, authenticated;
+revoke insert (id, name, created_by, created_at) on table public.families from public;
+revoke insert (id, name, created_by, created_at) on table public.families from anon, authenticated;
+revoke update (id, name, created_by, created_at) on table public.families from public;
+revoke update (id, name, created_by, created_at) on table public.families from anon, authenticated;
+
+-- Conversations: reads only; creation is handled by ensure_family_conversation().
+revoke insert, update, delete on table public.conversations from public;
+revoke insert, update, delete on table public.conversations from anon, authenticated;
+revoke insert (id, family_id, created_at) on table public.conversations from public;
+revoke insert (id, family_id, created_at) on table public.conversations from anon, authenticated;
+revoke update (id, family_id, created_at) on table public.conversations from public;
+revoke update (id, family_id, created_at) on table public.conversations from anon, authenticated;
+
+-- Profiles: preserve own-row upsert, but only allow the three client-supplied columns.
+revoke insert, update, delete on table public.profiles from public;
+revoke insert, update, delete on table public.profiles from anon, authenticated;
+revoke insert (user_id, display_name, preferred_language, created_at, updated_at)
+  on table public.profiles from public;
+revoke insert (user_id, display_name, preferred_language, created_at, updated_at)
+  on table public.profiles from anon, authenticated;
+revoke update (user_id, display_name, preferred_language, created_at, updated_at)
+  on table public.profiles from public;
+revoke update (user_id, display_name, preferred_language, created_at, updated_at)
+  on table public.profiles from anon, authenticated;
+grant insert (user_id, display_name, preferred_language)
+  on table public.profiles to authenticated;
+grant update (user_id, display_name, preferred_language)
+  on table public.profiles to authenticated;
+
+-- Location updates: child inserts only the measured fields; server columns stay protected.
+revoke insert, update, delete on table public.location_updates from public;
+revoke insert, update, delete on table public.location_updates from anon, authenticated;
+revoke insert (id, family_id, child_user_id, latitude, longitude, accuracy_m,
+               battery_percent, recorded_at, received_at)
+  on table public.location_updates from public;
+revoke insert (id, family_id, child_user_id, latitude, longitude, accuracy_m,
+               battery_percent, recorded_at, received_at)
+  on table public.location_updates from anon, authenticated;
+revoke update (id, family_id, child_user_id, latitude, longitude, accuracy_m,
+               battery_percent, recorded_at, received_at)
+  on table public.location_updates from public;
+revoke update (id, family_id, child_user_id, latitude, longitude, accuracy_m,
+               battery_percent, recorded_at, received_at)
+  on table public.location_updates from anon, authenticated;
+grant insert (family_id, child_user_id, latitude, longitude, accuracy_m,
+              battery_percent, recorded_at)
+  on table public.location_updates to authenticated;
+
+-- Messages: text-only inserts and read_at-only updates.
+revoke insert on table public.messages from public;
+revoke insert on table public.messages from anon, authenticated;
+revoke insert (id, conversation_id, sender_user_id, kind, body,
+               media_object_path, created_at, read_at)
+  on table public.messages from public;
+revoke insert (id, conversation_id, sender_user_id, kind, body,
+               media_object_path, created_at, read_at)
+  on table public.messages from anon, authenticated;
+revoke update (id, conversation_id, sender_user_id, kind, body,
+               media_object_path, created_at, read_at)
+  on table public.messages from public;
+revoke update (id, conversation_id, sender_user_id, kind, body,
+               media_object_path, created_at, read_at)
+  on table public.messages from anon, authenticated;
+grant insert (conversation_id, sender_user_id, kind, body)
+  on table public.messages to authenticated;
+grant update (read_at) on table public.messages to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. messages: a recipient may only write read_at
 --
 --    The existing UPDATE policy pins sender_user_id <> auth.uid() and read_at IS NOT NULL,
 --    but RLS cannot restrict which columns a permitted UPDATE touches, so a recipient could
@@ -133,7 +213,7 @@ revoke update on table public.messages from anon, authenticated;
 grant update (read_at) on table public.messages to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 4. sos_events: a parent may only write acknowledged_at and acknowledged_by
+-- 5. sos_events: a parent may only write acknowledged_at and acknowledged_by
 --
 --    Same reasoning: the policy makes acknowledgement one-shot and pins acknowledged_by to
 --    auth.uid(), but the statement could also overwrite latitude, longitude, note or
@@ -144,12 +224,12 @@ revoke update on table public.sos_events from anon, authenticated;
 grant update (acknowledged_at, acknowledged_by) on table public.sos_events to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 5. conversations: members may read the family conversation (already allowed).
+-- 6. conversations: members may read the family conversation (already allowed).
 --    Nothing to add; creation goes through ensure_family_conversation above.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 6. family_invites: parents may read the invitation history, nobody may read token_hash
+-- 7. family_invites: parents may read the invitation history, nobody may read token_hash
 --
 --    The audited parent-only SELECT policy already exists. Reassert only the safe
 --    column grants; the stored token_hash remains unreadable to authenticated clients.
@@ -161,20 +241,20 @@ grant select (id, family_id, created_by, expires_at, consumed_by, consumed_at, c
   on table public.family_invites to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 7. zones
+-- 8. zones
 --
 --    The family-member SELECT policy and parent-only write policies were already
 --    verified in the live schema. Do not replace them here; preserving the audited
 --    policy definitions also keeps this migration's rollback bounded.
 --
 -- ---------------------------------------------------------------------------
--- 8. SOS history remains parent-only.
+-- 9. SOS history remains parent-only.
 --
 --    A child SELECT policy was explicitly declined. The client does not request
 --    child SOS history and this migration must not widen that visibility.
 --
 -- ---------------------------------------------------------------------------
--- 9. profiles: family members may read each other's profile
+-- 10. profiles: family members may read each other's profile
 --
 --    The previous membership policy could recurse through family_members RLS. Replace
 --    only this named policy with a SECURITY DEFINER-backed same-family check. The saved
@@ -188,7 +268,7 @@ create policy "family members read each other profiles"
   using (public.famguard_shares_family_with(user_id));
 
 -- ---------------------------------------------------------------------------
--- 10. subscriptions
+-- 11. subscriptions
 --
 --     Keep the existing parent-owned SELECT policy. The safe column-level SELECT
 --     grants below are already the audited intended boundary; payment identifiers
