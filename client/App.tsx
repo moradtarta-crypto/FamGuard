@@ -1,11 +1,7 @@
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AuthScreen } from './auth/AuthScreen';
-import type { AccountRole } from './lib/roles';
-
-const ROLE_LABEL: Record<AccountRole, string> = {
-  parent: 'Parent',
-  child: 'Child',
-};
+import { Dashboard } from './pages/Dashboard';
+import { Onboarding } from './pages/Onboarding';
 
 function Brand() {
   return (
@@ -55,7 +51,7 @@ function ConfigErrorScreen() {
         </div>
         <p className="muted">
           Set the server environment variables and retry. Only the publishable key is used — never a
-          service-role key.
+          service-role or secret key.
         </p>
         <button type="button" className="primary" onClick={retryConfig}>
           Retry
@@ -65,122 +61,54 @@ function ConfigErrorScreen() {
   );
 }
 
-function AccountShell() {
-  const { session, account, accountLoading, accountError, signOut, retryAccount } = useAuth();
-
-  const onSignOut = () => {
-    void signOut();
-  };
-
-  const role = account?.role ?? null;
-
+function AccountErrorScreen() {
+  const { accountError, retryAccount, signOut } = useAuth();
   return (
-    <div className="page">
-      <header className="topbar">
+    <div className="auth-page">
+      <div className="auth-card">
         <Brand />
-        <div className="topbar-meta">
-          {role ? (
-            <span className={`role-badge role-${role}`}>{ROLE_LABEL[role]}</span>
-          ) : (
-            <span className="role-badge role-unknown">Role not assigned</span>
-          )}
-          <span className="muted">{account?.displayName ?? session?.user.email ?? 'Signed in'}</span>
-          <button type="button" className="ghost" onClick={onSignOut}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {accountError ? (
         <div className="banner banner-error" role="alert">
           <strong>Could not load your account.</strong>
           <p>{accountError}</p>
           <p className="muted">
-            FamGuard reads only your own rows, so a database policy may be blocking this query. No
-            database change will be made from the app.
+            FamGuard reads only your own rows, so a database policy may be blocking this query. The
+            app will not attempt to change any database policy.
           </p>
-          <button type="button" className="secondary" onClick={retryAccount}>
+        </div>
+        <div className="form-actions">
+          <button type="button" className="primary" onClick={retryAccount}>
             Try again
           </button>
+          <button type="button" className="ghost" onClick={() => void signOut()}>
+            Sign out
+          </button>
         </div>
-      ) : null}
-
-      <main className="layout">
-        <section className="card" aria-labelledby="account-heading">
-          <div className="card-head">
-            <h2 id="account-heading">Your account</h2>
-            <span className="muted">Supabase authentication</span>
-          </div>
-          {accountLoading ? (
-            <div className="skeleton" aria-hidden="true" />
-          ) : (
-            <dl className="detail-list">
-              <div>
-                <dt>Signed in as</dt>
-                <dd>{account?.email ?? session?.user.email ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Interface</dt>
-                <dd>
-                  {role === 'parent'
-                    ? 'Parent account'
-                    : role === 'child'
-                      ? 'Child account'
-                      : 'Not assigned yet'}
-                </dd>
-              </div>
-              <div>
-                <dt>Role source</dt>
-                <dd>
-                  {account?.roleSource === 'membership'
-                    ? 'Family membership'
-                    : account?.roleSource === 'profile'
-                      ? 'Profile record'
-                      : 'No role found'}
-                </dd>
-              </div>
-              <div>
-                <dt>Profile record</dt>
-                <dd>{account?.profile ? 'Loaded' : 'Not created yet'}</dd>
-              </div>
-            </dl>
-          )}
-        </section>
-
-        <section className="card" aria-labelledby="family-heading">
-          <div className="card-head">
-            <h2 id="family-heading">Family</h2>
-            <span className="muted">
-              {account ? `${account.memberships.length} membership${account.memberships.length === 1 ? '' : 's'}` : '—'}
-            </span>
-          </div>
-
-          {accountLoading ? (
-            <div className="skeleton" aria-hidden="true" />
-          ) : account?.familyId ? (
-            <div className="panel-note">
-              <p>
-                Connected to family <code>{account.familyId}</code>.
-              </p>
-              <p className="muted">
-                Member list, chat, SOS, location and zones are the next implementation stage.
-              </p>
-            </div>
-          ) : (
-            <div className="empty">
-              <p>You are not part of a family yet.</p>
-              <p className="muted">
-                Creating a family and joining with an invite are the next implementation stage.
-              </p>
-            </div>
-          )}
-        </section>
-      </main>
-
-      <footer className="footer">
-        <span>FamGuard · live data from your Supabase project, no demo records</span>
-      </footer>
+      </div>
     </div>
+  );
+}
+
+function SignedIn() {
+  const { client, account, accountLoading, accountError, signOut, retryAccount } = useAuth();
+
+  if (accountError && !account) {
+    return <AccountErrorScreen />;
+  }
+
+  if (accountLoading && !account) {
+    return <LoadingScreen />;
+  }
+
+  if (!client || !account) {
+    return <LoadingScreen />;
+  }
+
+  if (account.memberships.length === 0) {
+    return <Onboarding client={client} account={account} onChanged={retryAccount} />;
+  }
+
+  return (
+    <Dashboard client={client} account={account} onSignOut={() => void signOut()} />
   );
 }
 
@@ -189,7 +117,7 @@ function Screen() {
   if (phase === 'loading') return <LoadingScreen />;
   if (phase === 'config-error') return <ConfigErrorScreen />;
   if (phase === 'signed-out') return <AuthScreen />;
-  return <AccountShell />;
+  return <SignedIn />;
 }
 
 export default function App() {
