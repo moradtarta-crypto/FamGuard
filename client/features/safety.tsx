@@ -259,6 +259,8 @@ export function SosPanel({
   const [note, setNote] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A stored alert whose position lookup failed is a success with a warning, not an error.
+  const [warning, setWarning] = useState<string | null>(null);
   const [ackError, setAckError] = useState<string | null>(null);
   const [ackPending, setAckPending] = useState<string | null>(null);
 
