@@ -28,78 +28,57 @@ until its three helper bodies have been reviewed and the confirmation line delib
 
 `20261107_0001`
 
-1. `famguard_shares_family_with(uuid)` — new helper: does the caller share any family with
-   that user? Used by the co-member profile policy.
-2. `ensure_family_conversation(uuid)` — new `SECURITY DEFINER` function with a pinned
-   `search_path`. Validates membership, locks the family row, returns the canonical
-   conversation and creates it only when the family has none. This replaces the direct
-   `INSERT` that `conversations` has no policy for.
-3. `messages` — `REVOKE UPDATE` on the table, then `GRANT UPDATE (read_at)`. A recipient can
-   therefore mark a message read and can no longer touch `body`, `sender_user_id`, `kind`,
-   `conversation_id` or `created_at`.
-4. `sos_events` — `REVOKE UPDATE` on the table, then `GRANT UPDATE (acknowledged_at,
-   acknowledged_by)`. A parent can acknowledge once and cannot alter the child's identity,
-   coordinates or note.
-5. `family_invites` — preserves the already-audited parent-only `SELECT` policy and
-   reasserts `REVOKE SELECT` / `GRANT SELECT (safe columns)`, so `token_hash` stays unreadable.
-6. `zones` — the already-audited family-member read and parent-only write policies are
-   preserved; this migration does not replace them.
-7. `sos_events` — history remains parent-only. A child SELECT policy was explicitly declined,
-   so the migration does not widen SOS visibility.
-8. `profiles` — co-members can read each other's display names within a shared family. The
-   prior policy expression is replaced with a SECURITY DEFINER-backed membership check.
-9. `subscriptions` — the existing parent-owned SELECT policy is preserved. Safe column grants
-   remain limited to status/plan/date metadata; payment identifiers are not exposed.
+1. `famguard_shares_family_with(uuid)` — new helper used by the co-member profile policy.
+2. `ensure_family_conversation(uuid)` — validates membership, locks the family row and
+   creates the canonical conversation only when absent. The client no longer attempts a
+   direct INSERT that RLS is designed to reject.
+3. **Least-privilege writes**:
+   - `families` and `conversations`: authenticated clients are read-only; creation stays in
+     their SECURITY DEFINER RPCs.
+   - `profiles`: own-row upsert is limited to `user_id`, `display_name` and
+     `preferred_language`.
+   - `location_updates`: child inserts are limited to measured location/battery fields;
+     `id` and `received_at` remain database-controlled.
+   - `messages`: text-only insert columns; `read_at` is the only UPDATE column.
+4. `sos_events`: `acknowledged_at` and `acknowledged_by` are the only UPDATE columns.
+   A parent cannot rewrite the child's identity, coordinates or note.
+5. `family_invites`: preserves the parent-only SELECT policy and safe column grants;
+   `token_hash` stays unreadable.
+6. `zones`: preserves the already-audited family-member read and parent-only write policies.
+7. SOS history remains parent-only. A child SELECT policy was explicitly declined.
+8. `profiles`: replaces the co-member read policy with a SECURITY DEFINER-backed
+   same-family check to avoid recursive RLS.
+9. `subscriptions`: preserves the parent-owned SELECT policy and safe column grants;
+   payment identifiers remain unavailable to authenticated clients.
 
-`20261107` verification
+`20261107_0002` is read-only: it displays the exact membership helper definitions and
+security attributes. Inspect the bodies before proceeding.
 
-10. Read-only display of the helper definitions, exact signatures, SECURITY mode,
-    volatility and function settings. Review the bodies before applying any hardening.
-
-`20261107_0003`
-
-11. After review, sets `SECURITY DEFINER`, `STABLE` and
-    `search_path = public, pg_temp` on the exact three helper signatures. It does not
-    change their bodies or owners. A deliberate confirmation line must be enabled first.
+`20261107_0003` sets `SECURITY DEFINER`, `STABLE` and
+`search_path = public, pg_temp` on the exact three helper signatures after the explicit
+review gate is enabled. It does not change function bodies or owners.
 
 ## Verify after applying
 
-```sql
--- 1. The new function exists and is definer-secured.
-select proname, prosecdef, proconfig
-from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname in
-  ('ensure_family_conversation','famguard_shares_family_with',
-   'is_family_member','is_parent_in_family','is_child_in_family');
-
--- 2. Write privileges are column-scoped, not table-wide.
-select grantee, privilege_type,
-       string_agg(column_name, ',' order by column_name) as columns
-from information_schema.column_privileges
-where table_schema = 'public' and table_name in ('messages','sos_events')
-  and privilege_type = 'UPDATE'
-group by grantee, privilege_type;
-
--- 3. The new policies are present.
-select tablename, policyname, cmd from pg_policies
-where schemaname = 'public'
-  and policyname in ('family members read each other profiles',
-                     'parents read family invites')
-order by tablename;
-```
-
-Then sign in as a parent and as a child and confirm: the family chat opens, a parent sees SOS
-history and can acknowledge an alert, a child can submit SOS without reading family history,
-the invite list shows history, and the parent subscription panel renders.
+Run `audit/verify_after_security_repair.sql` and save its output. It checks RLS state,
+policy definitions, table/column grants, and helper security attributes. Confirm that
+there are no `anon` grants, no child SOS SELECT policy, and no family-wide subscription
+SELECT policy before testing the app as a parent and child.
 
 ## Rollback
 
-`rollback/20261107_0001_security_repair_rollback.sql` restores only audited column-level grants;
-it never restores broad table-wide SELECT/UPDATE. It drops the replacement profile policy,
-so restore the exact prior CREATE POLICY statement from the saved audit output before users
-return. `rollback/20261107_0003_helper_hardening_rollback.sql` is intentionally a manual note
-file for 0003: restore exact captured SECURITY mode, volatility and search_path values.
-Neither rollback may be guessed or run blindly.
+`rollback/20261107_0001_security_repair_rollback.sql` restores the audited pre-migration
+ACL baseline for families, conversations, profiles, location updates and messages. That
+baseline includes broad authenticated table grants; RLS still applies, but this is a
+rollback-only state, not the recommended steady-state security posture. The rollback
+keeps family-invite and subscription reads column-scoped and keeps message/SOS UPDATE
+columns restricted.
+
+The migration replaces the co-member profile policy, so restore its exact prior
+`CREATE POLICY` statement from the saved audit output before users return.
+`rollback/20261107_0003_helper_hardening_rollback.sql` is intentionally a manual note
+file: restore exact captured SECURITY mode, volatility and search_path values. Neither
+rollback may be guessed or run blindly.
 
 ## Application behaviour before the migrations are applied
 
