@@ -32,6 +32,7 @@ export interface AuthContextValue {
   recoveryMode: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
   resetPassword: (email: string) => Promise<string | null>;
+  resendConfirmation: (email: string) => Promise<string | null>;
   updatePassword: (password: string) => Promise<string | null>;
   signUp: (input: { email: string; password: string; fullName: string; requestedRole: 'parent' | 'child' }) => Promise<SignUpResult>;
   signOut: () => Promise<string | null>;
@@ -177,6 +178,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? error.message : null;
   }, [client]);
 
+  const resendConfirmation = useCallback(async (email: string): Promise<string | null> => {
+    if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
+    const emailRedirectTo = new URL('/', window.location.origin).toString();
+    const { error } = await client.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo },
+    });
+    return error ? error.message : null;
+  }, [client]);
+
   const updatePassword = useCallback(async (password: string): Promise<string | null> => {
     if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
     const { error } = await client.auth.updateUser({ password });
@@ -198,7 +210,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: { full_name: input.fullName.trim(), requested_role: input.requestedRole },
         },
       });
-      if (error) return { error: error.message, info: null };
+      if (error) {
+        if (/535|smtp|error sending.*email|unexpected_failure/i.test(error.message)) {
+          return {
+            error: null,
+            info: 'Your account may have been created, but the confirmation email could not be sent. Do not create another account. The email delivery settings need to be corrected in Supabase before the confirmation can be resent.',
+          };
+        }
+        return { error: error.message, info: null };
+      }
       if (!data.session) {
         return {
           error: null,
@@ -244,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recoveryMode,
       signIn,
       resetPassword,
+      resendConfirmation,
       updatePassword,
       signUp,
       signOut,
@@ -262,6 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recoveryMode,
       signIn,
       resetPassword,
+      resendConfirmation,
       updatePassword,
       signUp,
       signOut,
