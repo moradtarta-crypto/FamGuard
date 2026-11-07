@@ -76,7 +76,19 @@ where specific_schema = 'public'
 order by routine_name, specific_name, grantee;
 
 -- ---------------------------------------------------------------------------
--- 5. Triggers on the FamGuard tables (confirm nothing rewrites rows behind RLS)
+-- 5. Column types, nullability and defaults (important for server-owned timestamps)
+-- ---------------------------------------------------------------------------
+select table_name, column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in (
+    'profiles', 'families', 'family_members', 'family_invites', 'zones',
+    'location_updates', 'conversations', 'messages', 'sos_events', 'subscriptions'
+  )
+order by table_name, ordinal_position;
+
+-- ---------------------------------------------------------------------------
+-- 6. Triggers on the FamGuard tables (confirm nothing rewrites rows behind RLS)
 -- ---------------------------------------------------------------------------
 select event_object_table as table_name, trigger_name, action_timing, event_manipulation
 from information_schema.triggers
@@ -84,7 +96,7 @@ where trigger_schema = 'public'
 order by event_object_table, trigger_name;
 
 -- ---------------------------------------------------------------------------
--- 6. Enums actually present (compare with the values the client validates)
+-- 7. Enums actually present (compare with the values the client validates)
 -- ---------------------------------------------------------------------------
 select t.typname as enum_name, e.enumlabel as value, e.enumsortorder
 from pg_type t
@@ -94,7 +106,7 @@ where n.nspname = 'public'
 order by t.typname, e.enumsortorder;
 
 -- ---------------------------------------------------------------------------
--- 7. Row counts only — proof that the data you care about exists before/after.
+-- 8. Row counts only — proof that the data you care about exists before/after.
 --    No row content is read.
 -- ---------------------------------------------------------------------------
 select 'profiles' as table_name, count(*) from public.profiles
