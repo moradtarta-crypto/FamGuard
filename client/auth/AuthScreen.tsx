@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './AuthProvider';
 
 type Mode = 'sign-in' | 'sign-up' | 'reset' | 'update';
@@ -6,6 +6,10 @@ type Mode = 'sign-in' | 'sign-up' | 'reset' | 'update';
 export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean }) {
   const { signIn, signUp, resetPassword, updatePassword } = useAuth();
   const [mode, setMode] = useState<Mode>(recoveryMode ? 'update' : 'sign-in');
+
+  useEffect(() => {
+    if (recoveryMode) setMode('update');
+  }, [recoveryMode]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
