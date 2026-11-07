@@ -75,7 +75,6 @@ export function ShareLocationCard({
   const rows = latest.data?.rows ?? [];
   const membershipUnverified = latest.data?.membership === 'unverified';
   const locationHistoryRestricted = latest.data?.membership === 'restricted';
-  const locationHistoryRestricted = latest.data?.membership === 'restricted';
   const mine = rows.find((row) => row.child_user_id === account.userId) ?? null;
 
   const [pending, setPending] = useState(false);
@@ -185,6 +184,7 @@ export function MemberLocationsPanel({
 
   const rows = latest.data?.rows ?? [];
   const membershipUnverified = latest.data?.membership === 'unverified';
+  const locationHistoryRestricted = latest.data?.membership === 'restricted';
 
   return (
     <SectionCard
