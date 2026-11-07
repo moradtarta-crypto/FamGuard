@@ -596,8 +596,8 @@ export function ZonesPanel({
             const inside = distance !== null ? distance <= zone.radius_m : null;
             const childDistances = role === 'parent'
               ? (latest.data?.rows ?? []).map((row) => ({
-                  userId: row.child_user_id,
                   name: memberNames.get(row.child_user_id) ?? `Member ${row.child_user_id.slice(0, 8)}`,
+                  recordedAt: row.recorded_at,
                   distance: distanceMeters(
                     { latitude: row.latitude, longitude: row.longitude },
                     { latitude: zone.center_lat, longitude: zone.center_lng },
@@ -614,7 +614,7 @@ export function ZonesPanel({
                     {role === 'parent'
                       ? latest.data?.membership === 'verified'
                         ? childDistances.length > 0
-                          ? ` · ${childDistances.map((item) => `${item.name}: ${formatDistance(item.distance)} (${item.distance <= zone.radius_m ? 'inside' : 'outside'})`).join(' · ')}`
+                          ? ` · ${childDistances.map((item) => `${item.name}: ${formatDistance(item.distance)} (${item.distance <= zone.radius_m ? 'inside' : 'outside'}, ${formatRelative(item.recordedAt)})`).join(' · ')}`
                           : ' · no child location shared yet'
                         : ' · child distances unavailable'
                       : inside !== null && distance !== null
