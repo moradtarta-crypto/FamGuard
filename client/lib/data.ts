@@ -145,10 +145,22 @@ export async function loadFamilyMembers(
 
 /* ------------------------------------------------------------------ invites */
 
+export type InviteVisibility = 'readable' | 'unverified';
+
+export interface InviteList {
+  rows: FamilyInviteRow[];
+  /**
+   * `unverified` means the query returned no rows and the account cannot prove whether that
+   * is because the family has no invites or because the database refuses the read. Row level
+   * security filters silently, so an empty list on its own is never proof of "no invites".
+   */
+  visibility: InviteVisibility;
+}
+
 export async function loadInvites(
   client: SupabaseClient,
   familyId: string,
-): Promise<FamilyInviteRow[]> {
+): Promise<InviteList> {
   const { data, error } = await client
     .from('family_invites')
     .select(COLUMNS.familyInvite)
@@ -157,7 +169,9 @@ export async function loadInvites(
     .limit(25);
 
   if (error) fail(error, 'read family invites');
-  return (data ?? []) as FamilyInviteRow[];
+
+  const rows = (data ?? []) as FamilyInviteRow[];
+  return { rows, visibility: rows.length > 0 ? 'readable' : 'unverified' };
 }
 
 /* -------------------------------------------------------------------- zones */
@@ -363,17 +377,63 @@ export async function loadConversation(
   return (data as ConversationRow | null) ?? null;
 }
 
+/**
+ * True when the failure is "this RPC does not exist yet", i.e. the database has not had the
+ * FamGuard security migration applied. Anything else must be reported to the user.
+ */
+function isMissingRpc(error: DbError): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  return /could not find the function|function .* does not exist/i.test(error.message ?? '');
+}
+
 export async function createConversation(
   client: SupabaseClient,
   familyId: string,
 ): Promise<ConversationRow> {
-  // Two members can create a conversation in the same round-trip. Making the insert
-  // unique would need a schema change, so converge instead: read back the canonical
-  // (oldest) conversation and return that. Both callers then target a single row, and
-  // any duplicate row stays inert because nothing ever resolves to it.
-  const { error } = await client.from('conversations').insert({ family_id: familyId });
+  // `conversations` has no INSERT policy, so a direct insert is refused and the family chat
+  // could never start. The database therefore exposes a SECURITY DEFINER function that
+  // validates membership and returns the family's canonical conversation, creating it only
+  // when the family has none. Concurrency is resolved inside the function with a lock on the
+  // family row, so two members starting the chat together converge on one conversation.
+  const existing = await loadConversation(client, familyId);
+  if (existing) return existing;
 
-  if (error) fail(error, 'create the family conversation');
+  const { data, error } = await client.rpc('ensure_family_conversation', {
+    target_family: familyId,
+  });
+
+  if (!error) {
+    const canonical = await loadConversation(client, familyId);
+    if (canonical) return canonical;
+    if (typeof data === 'string' && data.length > 0) {
+      return { id: data, family_id: familyId, created_at: null } as ConversationRow;
+    }
+    throw new DataError(
+      'Could not start the family chat: the conversation could not be read back after it was created.',
+      null,
+      false,
+    );
+  }
+
+  if (!isMissingRpc(error)) fail(error, 'create the family conversation');
+
+  // The database has not been migrated yet. Keep the previous behaviour so the failure is
+  // explicit and actionable instead of pretending the chat works.
+  const legacy = await client.from('conversations').insert({ family_id: familyId });
+  if (legacy.error) {
+    const refused = legacy.error.code === '42501' || /row-level security/i.test(legacy.error.message ?? '');
+    if (refused) {
+      throw new DataError(
+        'Could not start the family chat: the database does not allow creating conversations yet. ' +
+          'Apply the FamGuard security migration (supabase/migrations/20261107_0001_security_repair.sql).',
+        legacy.error.code ?? null,
+        false,
+      );
+    }
+    fail(legacy.error, 'create the family conversation');
+  }
 
   const canonical = await loadConversation(client, familyId);
   if (!canonical) {
