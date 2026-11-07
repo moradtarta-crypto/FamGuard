@@ -107,6 +107,7 @@ test('config endpoint rejects credentials embedded in the Supabase URL', async (
 test('keyRejectionReason accepts publishable keys', () => {
   assert.equal(keyRejectionReason(ANON_KEY), null);
   assert.equal(keyRejectionReason('sb_publishable_abc123'), null);
+  assert.notEqual(keyRejectionReason('sb_publishable_'), null);
   assert.notEqual(keyRejectionReason('sb_secret_abc123'), null);
   assert.notEqual(keyRejectionReason(jwt({ role: 'service_role' })), null);
   assert.notEqual(keyRejectionReason('   '), null);
