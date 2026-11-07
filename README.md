@@ -58,6 +58,14 @@ client/
 
 A database or row-level security error is shown to the user; it is not treated as an empty successful result.
 
+## Installable PWA
+
+- The web manifest and app icon make the site installable on supported browsers, including Android Chrome.
+- The service worker caches only the static app shell, manifest, icon and built assets.
+- `/api/*`, Supabase requests, authentication data, locations, messages and SOS records are never cached.
+- Offline mode does not send SOS, share location or load family records; those actions require a network connection.
+- There is no background location tracking or push notification support in this build.
+
 ## Implemented behavior and limits
 
 - Authentication: email/password, session persistence and email confirmation handling.
