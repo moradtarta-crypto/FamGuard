@@ -56,8 +56,12 @@ export function readSupabaseConfig(env: NodeJS.ProcessEnv = process.env): Config
   } else {
     try {
       const parsed = new URL(url);
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        problems.push('SUPABASE_URL must be an http(s) URL.');
+      const localHttpHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+      if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && localHttpHosts.has(parsed.hostname))) {
+        problems.push('SUPABASE_URL must use HTTPS, except for a local development host.');
+      }
+      if (parsed.username || parsed.password) {
+        problems.push('SUPABASE_URL must not contain embedded credentials.');
       }
     } catch {
       problems.push('SUPABASE_URL is not a valid URL.');
