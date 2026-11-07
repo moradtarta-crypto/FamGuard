@@ -293,6 +293,22 @@ test('H-3 a refused location read is reported instead of silently dropped', asyn
   );
 });
 
+
+test('child location history is marked restricted without querying parent-only rows', async () => {
+  const { client, log } = makeClient({
+    family_members: () => ({ data: [{ user_id: 'child-1' }], error: null }),
+    location_updates: () => {
+      throw new Error('child must not query parent-only location history');
+    },
+  });
+
+  const latest = await loadLatestLocations(client, 'fam-1', 'child');
+
+  assert.deepEqual(latest.rows, []);
+  assert.equal(latest.membership, 'restricted');
+  assert.equal(log.length, 1, 'only the family membership read should run');
+});
+
 /* ------------------------------------------------------------------- H-4 */
 
 test('H-4 concurrent conversation creation converges on one canonical conversation', async () => {
