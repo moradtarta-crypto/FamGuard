@@ -37,14 +37,17 @@ test('enum guards accept only the verified database labels', () => {
 
 test('column maps match the verified schema and never include unknown fields', () => {
   assert.equal(
-    COLUMNS.profiles,
-    'user_id,display_name,preferred_language,created_at,updated_at',
+    COLUMNS.profile,
+    'user_id, display_name, preferred_language, created_at, updated_at',
   );
-  assert.equal(COLUMNS.family_members, 'family_id,user_id,role,linked_at');
-  assert.equal(COLUMNS.families, 'id,name,created_by,created_at');
+  assert.equal(COLUMNS.familyMember, 'family_id, user_id, role, linked_at');
+  assert.equal(COLUMNS.family, 'id, name, created_by, created_at');
   // profiles has no role column: role comes from family_members only.
-  assert.equal(COLUMNS.profiles.includes('role'), false);
-  assert.equal(COLUMNS.messages.includes('kind'), true);
+  assert.equal(COLUMNS.profile.includes('role'), false);
+  assert.equal(COLUMNS.message.includes('kind'), true);
+  // The invite hash is never requested by the client.
+  assert.equal(COLUMNS.familyInvite.includes('token_hash'), false);
+  assert.equal(COLUMNS.sosEvent.includes('acknowledged_by'), true);
 });
 
 test('RLS and privilege errors are reported as blocked by policy', () => {
