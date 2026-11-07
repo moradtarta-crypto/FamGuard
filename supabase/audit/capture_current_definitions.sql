@@ -1,9 +1,9 @@
 -- FamGuard — READ-ONLY capture of the current database definitions.
 --
 -- Run this FIRST, in the Supabase SQL editor, and save the output (or "Download CSV")
--- next to this file. It is the backup that makes every migration in supabase/migrations
--- reversible: it records the exact policy text, function bodies, attributes and grants
--- that exist today.
+-- next to this file. It records the policy expressions, function bodies, attributes,
+-- grants and row counts needed for a reviewed manual rollback. Rollbacks are not all
+-- automatic: see the matching rollback notes before applying any migration.
 --
 -- This script only SELECTs from the system catalogs. It performs no DDL and no DML.
 
@@ -49,7 +49,7 @@ join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
   and p.proname in (
     'is_family_member', 'is_parent_in_family', 'is_child_in_family',
-    'create_family', 'create_family_invite', 'accept_family_invite'
+    'create_family', 'create_family_invite', 'accept_family_invite', 'get_family_members'
   )
 order by p.proname;
 
@@ -67,6 +67,13 @@ from information_schema.role_column_grants
 where table_schema = 'public'
   and grantee in ('anon', 'authenticated')
 order by table_name, column_name, grantee;
+
+-- Function EXECUTE grants, including PUBLIC, anon and authenticated.
+select routine_name, specific_name, grantee, privilege_type, is_grantable
+from information_schema.routine_privileges
+where specific_schema = 'public'
+  and grantee in ('PUBLIC', 'anon', 'authenticated')
+order by routine_name, specific_name, grantee;
 
 -- ---------------------------------------------------------------------------
 -- 5. Triggers on the FamGuard tables (confirm nothing rewrites rows behind RLS)
