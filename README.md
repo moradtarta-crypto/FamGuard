@@ -60,7 +60,7 @@ A database or row-level security error is shown to the user; it is not treated a
 
 ## Installable PWA
 
-- The web manifest and app icon make the site installable on supported browsers, including Android Chrome.
+- The web manifest and app icon prepare the site for installation on supported browsers, including Android Chrome, once deployed on HTTPS. Live installation has not yet been verified.
 - The service worker caches only the static app shell, manifest, icon and built assets.
 - `/api/*`, Supabase requests, authentication data, locations, messages and SOS records are never cached.
 - Offline mode does not send SOS, share location or load family records; those actions require a network connection.
