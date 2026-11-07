@@ -137,8 +137,12 @@ export interface SubscriptionRow {
   plan_code: string | null;
   starts_at: string | null;
   ends_at: string | null;
-  payment_network: string | null;
-  transaction_id: string | null;
+  /**
+   * Payment identifiers are only readable by the parent who owns the subscription row, so
+   * they are optional: a co-parent or child reads the same row without these columns.
+   */
+  payment_network?: string | null;
+  transaction_id?: string | null;
   verified_at: string | null;
   created_at: string | null;
 }
@@ -157,5 +161,8 @@ export const COLUMNS = {
   message: 'id, conversation_id, sender_user_id, kind, body, media_object_path, created_at, read_at',
   sosEvent: 'id, family_id, child_user_id, latitude, longitude, note, created_at, acknowledged_at, acknowledged_by',
   subscription:
-    'id, parent_user_id, family_id, status, plan_code, starts_at, ends_at, payment_network, transaction_id, verified_at, created_at',
+    // Payment identifiers (payment_network, transaction_id) are deliberately not selected:
+    // the family-wide subscription policy is readable by every member, and those columns are
+    // granted to the paying parent only. Selecting them would fail for everyone else.
+    'id, parent_user_id, family_id, status, plan_code, starts_at, ends_at, verified_at, created_at',
 } as const;
