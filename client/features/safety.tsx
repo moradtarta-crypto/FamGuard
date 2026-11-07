@@ -279,18 +279,25 @@ export function SosPanel({
     event.preventDefault();
     setPending(true);
     setError(null);
+    setWarning(null);
     try {
       // Bounded to ~3 seconds and never cached. A denied or unavailable sensor only drops
-      // the coordinates; the alert itself must still be recorded.
-      await submitSos(client, {
+      // the coordinates; the alert itself is still recorded, and that case comes back as a
+      // warning rather than a failure.
+      const outcome = await sendSosAlert(client, {
         familyId,
         childUserId: account.userId,
         note: note.trim() ? note.trim() : null,
       });
+
+      if (!outcome.ok) {
+        setError(outcome.error);
+        return;
+      }
+
       setNote('');
+      setWarning(outcome.warning);
       events.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not send the SOS alert.');
     } finally {
       setPending(false);
     }
