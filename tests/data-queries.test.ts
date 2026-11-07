@@ -516,3 +516,89 @@ test('M-4 a database failure is still reported instead of being swallowed', asyn
     (error: unknown) => error instanceof DataError && error.code === '42501',
   );
 });
+
+/* ------------------------------------------------------------------- L-7 */
+
+/**
+ * `sendSosAlert` is the function `SosPanel`'s submit handler calls, so running it with no
+ * injected `submit` exercises the real `submitSos` -> `raiseSos` path the button uses.
+ */
+test('L-7 the panel handler stores the SOS through submitSos and warns when there is no position', async () => {
+  let inserted: Record<string, unknown> | null = null;
+
+  const { client } = makeClient({
+    sos_events: (calls) => {
+      inserted = (recorded(calls, 'insert') as Record<string, unknown>) ?? null;
+      return { data: { id: 'sos-panel-1' }, error: null };
+    },
+  });
+
+  // Nothing is injected here: this is the default production path, and Node exposes no
+  // Geolocation API, so the lookup fails exactly like a denied permission would.
+  const outcome = await sendSosAlert(client, {
+    familyId: 'fam-1',
+    childUserId: 'child-1',
+    note: 'help',
+  });
+
+  if (!outcome.ok) throw new Error(`expected a stored alert, got: ${outcome.error}`);
+
+  // The row really reached the database through submitSos — not skipped and not simulated.
+  assert.equal(inserted?.family_id, 'fam-1');
+  assert.equal(inserted?.child_user_id, 'child-1');
+  assert.equal(inserted?.note, 'help');
+  assert.equal(inserted?.latitude, null);
+  assert.equal(inserted?.longitude, null);
+  assert.equal(outcome.submission.event.id, 'sos-panel-1');
+
+  // A stored alert is a success, and the missing position is surfaced as a warning.
+  assert.equal(outcome.warning, SOS_WITHOUT_LOCATION_WARNING);
+  assert.match(outcome.warning ?? '', /location could not be read/i);
+});
+
+test('L-7 the panel handler reports success without a warning when coordinates are available', async () => {
+  let inserted: Record<string, unknown> | null = null;
+
+  const { client } = makeClient({
+    sos_events: (calls) => {
+      inserted = (recorded(calls, 'insert') as Record<string, unknown>) ?? null;
+      return { data: { id: 'sos-panel-2' }, error: null };
+    },
+  });
+
+  const outcome = await sendSosAlert(
+    client,
+    { familyId: 'fam-1', childUserId: 'child-1', note: null },
+    // Only the position lookup is replaced; the row is still written by the real submitSos.
+    (inner, request) =>
+      submitSos(inner, request, async () => ({ latitude: 12.5, longitude: -7.25, accuracy: 8 })),
+  );
+
+  if (!outcome.ok) throw new Error(`expected a stored alert, got: ${outcome.error}`);
+
+  assert.equal(outcome.warning, null);
+  assert.equal(outcome.submission.coordinates?.latitude, 12.5);
+  assert.equal(inserted?.latitude, 12.5);
+  assert.equal(inserted?.longitude, -7.25);
+});
+
+test('L-7 a refused database write is reported as an error, never as a warning', async () => {
+  const { client } = makeClient({
+    sos_events: () => ({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table sos_events' },
+    }),
+  });
+
+  const outcome = await sendSosAlert(client, {
+    familyId: 'fam-1',
+    childUserId: 'child-1',
+    note: null,
+  });
+
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) throw new Error('a refused write must not be reported as a stored alert');
+  // The panel renders this text under "SOS not sent", so the database reason must survive.
+  assert.match(outcome.error, /refused by your Supabase row level security policies/i);
+  assert.match(outcome.error, /permission denied for table sos_events/i);
+});
