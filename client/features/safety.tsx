@@ -65,14 +65,17 @@ export function ShareLocationCard({
   familyId: string;
   account: AccountContext;
 }) {
+  const viewerRole = account.memberships.find((membership) => membership.family_id === familyId)?.role ?? null;
   const latest = useResource(
     `locations:${familyId}`,
-    () => loadLatestLocations(client, familyId),
+    () => loadLatestLocations(client, familyId, viewerRole),
     20000,
     LOCATION_CACHE_MS,
   );
   const rows = latest.data?.rows ?? [];
   const membershipUnverified = latest.data?.membership === 'unverified';
+  const locationHistoryRestricted = latest.data?.membership === 'restricted';
+  const locationHistoryRestricted = latest.data?.membership === 'restricted';
   const mine = rows.find((row) => row.child_user_id === account.userId) ?? null;
 
   const [pending, setPending] = useState(false);
@@ -133,6 +136,8 @@ export function ShareLocationCard({
         </>
       ) : membershipUnverified ? (
         <MembershipUnverified />
+      ) : locationHistoryRestricted ? (
+        <Note>Your account can share its location, but only a parent can view location history. Ask a parent to confirm that your update arrived.</Note>
       ) : (
         <EmptyState title="You have not shared a location yet">
           Sharing asks the browser for permission once, then stores a single row in
@@ -157,9 +162,10 @@ export function MemberLocationsPanel({
   familyId: string;
   account: AccountContext;
 }) {
+  const viewerRole = account.memberships.find((membership) => membership.family_id === familyId)?.role ?? null;
   const latest = useResource(
     `locations:${familyId}`,
-    () => loadLatestLocations(client, familyId),
+    () => loadLatestLocations(client, familyId, viewerRole),
     20000,
     LOCATION_CACHE_MS,
   );
@@ -196,8 +202,9 @@ export function MemberLocationsPanel({
         </Banner>
       ) : null}
       {membershipUnverified ? <MembershipUnverified /> : null}
+      {locationHistoryRestricted ? <Note>Location history is visible to parents only. Your family’s location updates are not available to this account.</Note> : null}
       {latest.loading && !latest.data ? <SkeletonRows count={2} /> : null}
-      {!latest.loading && !latest.error && !membershipUnverified && rows.length === 0 ? (
+      {!latest.loading && !latest.error && !membershipUnverified && !locationHistoryRestricted && rows.length === 0 ? (
         <EmptyState title="No location updates yet">
           Location rows appear here after a family member shares their position.
         </EmptyState>
@@ -433,7 +440,7 @@ export function ZonesPanel({
   const zones = useResource(`zones:${familyId}`, () => loadZones(client, familyId), 30000);
   const latest = useResource(
     `locations:${familyId}`,
-    () => loadLatestLocations(client, familyId),
+    () => loadLatestLocations(client, familyId, role),
     30000,
     LOCATION_CACHE_MS,
   );
