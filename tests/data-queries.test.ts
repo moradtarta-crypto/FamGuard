@@ -651,7 +651,11 @@ test('L-7 the panel handler stores the SOS through submitSos and warns when ther
   assert.equal(inserted?.note, 'help');
   assert.equal(inserted?.latitude, null);
   assert.equal(inserted?.longitude, null);
-  assert.equal(outcome.submission.event.id, 'sos-panel-1');
+  // The stored alert is confirmed by what was written, not by reading the row back: the
+  // child has no SELECT policy on sos_events.
+  assert.equal(outcome.submission.event.familyId, 'fam-1');
+  assert.equal(outcome.submission.event.childUserId, 'child-1');
+  assert.equal(outcome.submission.event.hasCoordinates, false);
 
   // A stored alert is a success, and the missing position is surfaced as a warning.
   assert.equal(outcome.warning, SOS_WITHOUT_LOCATION_WARNING);
