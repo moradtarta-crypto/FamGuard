@@ -22,7 +22,7 @@ import {
   formatRelative,
   initials,
 } from '../lib/format';
-import { isZoneKind } from '../lib/schema';
+import { isAccountRole, isZoneKind } from '../lib/schema';
 import type { AccountRole, ZoneKind } from '../lib/schema';
 import { sendSosAlert } from '../lib/sos';
 
@@ -65,7 +65,8 @@ export function ShareLocationCard({
   familyId: string;
   account: AccountContext;
 }) {
-  const viewerRole = account.memberships.find((membership) => membership.family_id === familyId)?.role ?? null;
+  const membershipRole = account.memberships.find((membership) => membership.family_id === familyId)?.role;
+  const viewerRole: AccountRole | null = isAccountRole(membershipRole) ? membershipRole : null;
   const latest = useResource(
     `locations:${familyId}:${viewerRole ?? 'unknown'}`,
     () => loadLatestLocations(client, familyId, viewerRole),
@@ -163,7 +164,8 @@ export function MemberLocationsPanel({
   familyId: string;
   account: AccountContext;
 }) {
-  const viewerRole = account.memberships.find((membership) => membership.family_id === familyId)?.role ?? null;
+  const membershipRole = account.memberships.find((membership) => membership.family_id === familyId)?.role;
+  const viewerRole: AccountRole | null = isAccountRole(membershipRole) ? membershipRole : null;
   const latest = useResource(
     `locations:${familyId}:${viewerRole ?? 'unknown'}`,
     () => loadLatestLocations(client, familyId, viewerRole),
