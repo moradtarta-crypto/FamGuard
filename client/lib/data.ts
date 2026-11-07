@@ -292,9 +292,10 @@ export async function loadLatestLocations(
         .select(COLUMNS.location)
         .eq('family_id', familyId)
         .eq('child_user_id', userId)
+        .order('received_at', { ascending: false, nullsFirst: false })
         .order('recorded_at', { ascending: false })
-        // A tie on recorded_at must still select one stable row, otherwise the same query
-        // can report a different update between polls.
+        // Server receipt time wins over a client-supplied timestamp. The client timestamp
+        // remains a fallback for older rows with no received_at value.
         .order('id', { ascending: false })
         .limit(1)
         .maybeSingle();
