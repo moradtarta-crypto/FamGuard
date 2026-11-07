@@ -1,41 +1,49 @@
 -- FamGuard — rollback for 20261107_0001_security_repair.sql.
 --
--- Reverses every statement in that migration and nothing else:
---   * drops only the policies the migration created (the project's own policies are
---     untouched by both directions),
---   * restores table-level UPDATE and SELECT to the API roles,
---   * drops the two functions it added.
+-- IMPORTANT:
+--   The migration replaces the existing "family members read each other profiles"
+--   policy with a SECURITY DEFINER-backed expression. The exact previous policy body
+--   must be restored from the saved output of audit/capture_current_definitions.sql.
+--   This file drops the replacement but cannot safely guess the previous expression.
+--   Restore that captured CREATE POLICY statement before allowing users back into the app.
 --
--- No table, row, column, index or existing policy is affected. Run the whole file in one
--- transaction.
+--   This rollback deliberately does NOT grant table-wide SELECT or UPDATE. The audited
+--   baseline uses safe column-level grants; restoring table-wide grants would expose
+--   family_invites.token_hash / subscription payment identifiers and permit edits to
+--   message or SOS fields outside their intended columns.
+--
+-- Run only after reviewing the captured audit output.
 
 begin;
 
--- 10. subscriptions
-drop policy if exists "family members read family subscription" on public.subscriptions;
-grant select on table public.subscriptions to anon, authenticated;
-
--- 9. profiles
+-- Remove only the replacement policy that references the helper being removed.
 drop policy if exists "family members read each other profiles" on public.profiles;
 
--- 8. sos_events
-drop policy if exists "child reads own sos" on public.sos_events;
-grant update on table public.sos_events to authenticated;
+-- Restore the audited column-scoped UPDATE boundary.
+revoke update on table public.messages from public;
+revoke update on table public.messages from anon, authenticated;
+grant update (read_at) on table public.messages to authenticated;
 
--- 7. zones
-drop policy if exists "zones readable by family members" on public.zones;
+revoke update on table public.sos_events from public;
+revoke update on table public.sos_events from anon, authenticated;
+grant update (acknowledged_at, acknowledged_by) on table public.sos_events to authenticated;
 
--- 6. family_invites
-drop policy if exists "parents read family invites" on public.family_invites;
-grant select on table public.family_invites to anon, authenticated;
+-- Restore safe column-only reads; never grant table-wide access or access to secret columns.
+revoke select on table public.family_invites from public;
+revoke select on table public.family_invites from anon, authenticated;
+grant select (id, family_id, created_by, expires_at, consumed_by, consumed_at, created_at)
+  on table public.family_invites to authenticated;
 
--- 3 + 4. messages / sos_events write columns
-grant update on table public.messages to authenticated;
+revoke select on table public.subscriptions from public;
+revoke select on table public.subscriptions from anon, authenticated;
+grant select (id, parent_user_id, family_id, status, plan_code, starts_at, ends_at, verified_at, created_at)
+  on table public.subscriptions to authenticated;
 
--- 2. conversation RPC
+-- The family-invite parent-only policy, zone policies and parent-only subscription
+-- policy were already present in the audited baseline and are intentionally untouched.
+-- No child SOS read policy is created or dropped.
+
 drop function if exists public.ensure_family_conversation(uuid);
-
--- 1. membership helper
 drop function if exists public.famguard_shares_family_with(uuid);
 
 commit;
