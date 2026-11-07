@@ -376,6 +376,7 @@ export function SubscriptionPanel({
 }
 
 const CAPABILITIES: Array<{ label: string; state: string; tone: 'success' | 'warn' | 'neutral' }> = [
+  { label: 'Installable PWA', state: 'Static assets cached; live data needs network', tone: 'success' },
   { label: 'Email/password sign-in', state: 'Working', tone: 'success' },
   { label: 'Family creation and invites', state: 'Calls your existing RPCs', tone: 'success' },
   { label: 'Family chat (text)', state: 'Working, polling refresh', tone: 'success' },
@@ -401,7 +402,9 @@ export function CapabilitiesPanel() {
       </ul>
       <Note>
         Nothing above is simulated: where the backend support is missing, the feature is reported as
-        unavailable instead of showing placeholder data.
+        unavailable instead of showing placeholder data. The service worker caches only static
+        application files; sign-in, family data, location sharing, SOS and chat still require a
+        network connection. No private family data is stored in the offline cache.
       </Note>
     </SectionCard>
   );
