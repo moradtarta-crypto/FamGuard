@@ -24,7 +24,7 @@ import {
 } from '../lib/format';
 import { isZoneKind } from '../lib/schema';
 import type { AccountRole, ZoneKind } from '../lib/schema';
-import { submitSos } from '../lib/sos';
+import { sendSosAlert } from '../lib/sos';
 
 function refreshedLabel(updatedAt: number | null): string {
   if (!updatedAt) return 'not refreshed yet';
