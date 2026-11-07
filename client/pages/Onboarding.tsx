@@ -79,14 +79,15 @@ export function Onboarding({
     <div className="page">
       <header className="onboarding-head">
         <h1>Welcome, {account.displayName}</h1>
+        {account.requestedRole ? <p className="role-preference-note">Selected setup: <strong>{account.requestedRole === 'parent' ? 'Parent' : 'Child'}</strong>. Your actual permissions are determined by your family membership.</p> : null}
         <p className="muted">
           Your account exists, but it is not part of a family yet. Create a family as a parent, or
           join one with an invite token from a parent.
         </p>
       </header>
 
-      <div className="grid-two">
-        <SectionCard title="Create a family" aside="create_family RPC · parent">
+      <div className={`grid-two onboarding-options ${account.requestedRole === 'child' ? 'prefer-child' : 'prefer-parent'}`}>
+        <div className="onboarding-option parent-option"><SectionCard title="Create a family" aside="create_family RPC · parent">
           <form className="form" onSubmit={onCreateFamily}>
             <label className="field">
               <span>Family name</span>
@@ -115,9 +116,9 @@ export function Onboarding({
             writes your membership row and assigns your role. FamGuard does not insert those rows
             itself.
           </Note>
-        </SectionCard>
+        </SectionCard></div>
 
-        <SectionCard title="Join a family" aside="accept_family_invite RPC · child">
+        <div className="onboarding-option child-option"><SectionCard title="Join a family" aside="accept_family_invite RPC · child">
           <form className="form" onSubmit={onJoin}>
             <label className="field">
               <span>Invite token</span>
@@ -148,7 +149,7 @@ export function Onboarding({
             function. The role you receive is whatever that function and your policies assign — the
             app cannot choose it.
           </Note>
-        </SectionCard>
+        </SectionCard></div>
       </div>
 
       <SectionCard title="About this account" aside="from your own rows only">
