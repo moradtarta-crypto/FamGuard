@@ -117,7 +117,7 @@ export function Onboarding({
           </Note>
         </SectionCard>
 
-        <SectionCard title="Join a family" aside="accept_family_invite RPC · child or parent">
+        <SectionCard title="Join a family" aside="accept_family_invite RPC · child">
           <form className="form" onSubmit={onJoin}>
             <label className="field">
               <span>Invite token</span>
