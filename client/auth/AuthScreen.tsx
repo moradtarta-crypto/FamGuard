@@ -9,6 +9,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [requestedRole, setRequestedRole] = useState<'parent' | 'child'>('parent');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
         const message = await signIn(email, password);
         if (message) setError(message);
       } else if (mode === 'sign-up') {
-        const result = await signUp({ email, password, fullName });
+        const result = await signUp({ email, password, fullName, requestedRole });
         if (result.error) setError(result.error);
         if (result.info) setInfo(result.info);
         if (!result.error) setPassword('');
@@ -104,6 +105,18 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
 
         <form className="auth-form" onSubmit={onSubmit} noValidate={false}>
           {mode === 'sign-up' ? (
+            <>
+            <fieldset className="role-choice">
+              <legend>Who will use this account?</legend>
+              <label>
+                <input type="radio" name="requestedRole" value="parent" checked={requestedRole === 'parent'} onChange={() => setRequestedRole('parent')} />
+                <span><strong>Parent</strong><small>Create and manage a family</small></span>
+              </label>
+              <label>
+                <input type="radio" name="requestedRole" value="child" checked={requestedRole === 'child'} onChange={() => setRequestedRole('child')} />
+                <span><strong>Child</strong><small>Join a family using an invite code</small></span>
+              </label>
+            </fieldset>
             <label className="field">
               <span>Full name</span>
               <input
@@ -115,6 +128,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
                 required
               />
             </label>
+            </>
           ) : null}
 
           {mode !== 'update' ? <label className="field">
@@ -153,7 +167,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
           {mode === 'sign-in'
             ? 'Sign in with the email and password for your FamGuard account.'
             : mode === 'sign-up'
-              ? 'Your role (parent or child) comes from your family membership in FamGuard.'
+              ? 'This selection guides setup only. Your actual parent or child permissions are assigned securely by your family membership.'
               : mode === 'reset'
                 ? 'Enter your account email. If it is registered, Supabase will send a secure reset link.'
                 : 'Choose a new password for your FamGuard account.'}
