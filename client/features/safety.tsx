@@ -353,7 +353,7 @@ export function SosPanel({
       ) : null}
       {ackError ? <Banner tone="error" title="Acknowledgement failed">{ackError}</Banner> : null}
 
-      {role === 'child' ?
+      {role === 'child' ? (
         <form className="form" onSubmit={onRaise}>
           <label className="field">
             <span>Note (optional)</span>
