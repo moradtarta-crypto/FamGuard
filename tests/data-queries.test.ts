@@ -9,7 +9,7 @@ import {
 } from '../client/lib/data.js';
 import { SOS_POSITION_BUDGET_MS, withDeadline } from '../client/lib/geolocation.js';
 import { loadShared, resetSharedCache } from '../client/lib/resourceCache.js';
-import { submitSos } from '../client/lib/sos.js';
+import { SOS_WITHOUT_LOCATION_WARNING, sendSosAlert, submitSos } from '../client/lib/sos.js';
 
 type Terminal = { data: unknown; error: unknown };
 type Calls = Array<[string, unknown]>;
