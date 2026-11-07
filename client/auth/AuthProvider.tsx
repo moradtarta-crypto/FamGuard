@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!client) return;
     const { data } = client.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
-      if (event === 'SIGNED_OUT') setRecoveryMode(false);
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') setRecoveryMode(false);
       // Rows loaded for one account must never be handed to the next one, so the shared
       // screen cache is dropped whenever the authenticated user changes — including a
       // sign-out, where the new id is `null`.
@@ -176,7 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePassword = useCallback(async (password: string): Promise<string | null> => {
     if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
     const { error } = await client.auth.updateUser({ password });
-    if (!error) setRecoveryMode(false);
     return error ? error.message : null;
   }, [client]);
 
