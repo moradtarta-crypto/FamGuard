@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DataError, createConversation, loadLatestLocations, loadMessages } from '../client/lib/data.js';
+import {
+  DataError,
+  createConversation,
+  loadConversation,
+  loadLatestLocations,
+  loadMessages,
+} from '../client/lib/data.js';
 import { SOS_POSITION_BUDGET_MS, withDeadline } from '../client/lib/geolocation.js';
+import { loadShared, resetSharedCache } from '../client/lib/resourceCache.js';
+import { submitSos } from '../client/lib/sos.js';
 
 type Terminal = { data: unknown; error: unknown };
 type Calls = Array<[string, unknown]>;
@@ -74,6 +82,13 @@ function eqValue(calls: Calls, column: string): unknown {
   return pair ? (pair[1] as [string, unknown])[1] : undefined;
 }
 
+/** Every `order(...)` the query sent, in the order it was applied. */
+function orders(calls: Calls): Array<[string, { ascending?: boolean }]> {
+  return calls
+    .filter(([name]) => name === 'order')
+    .map(([, value]) => value as [string, { ascending?: boolean }]);
+}
+
 /* ------------------------------------------------------------------- H-1 */
 
 function messageFixture(count: number) {
@@ -120,6 +135,13 @@ test('H-1 loadMessages returns the newest window, in chronological order', async
   const order = recorded(log[0]?.calls ?? [], 'order') as [string, { ascending: boolean }];
   assert.equal(order[0], 'created_at');
   assert.equal(order[1].ascending, false);
+
+  // M-2: a second key on id makes ties deterministic, so neither the window boundary nor
+  // the rendered order can change between two identical polls.
+  assert.deepEqual(orders(log[0]?.calls ?? []), [
+    ['created_at', { ascending: false }],
+    ['id', { ascending: false }],
+  ]);
 });
 
 /* ------------------------------------------------------------------- H-3 */
