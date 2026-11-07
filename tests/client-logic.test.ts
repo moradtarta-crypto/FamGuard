@@ -135,9 +135,17 @@ test('role labels come from the account_role enum', () => {
 
 test('display name falls back to the account email, never to demo data', () => {
   const user = { email: 'parent@example.com', user_metadata: {} } as never;
-  assert.equal(resolveDisplayName(null, user), 'parent@example.com');
+  // No profile row yet: fall back to the signed-in account's own email local part.
+  assert.equal(resolveDisplayName(null, user), 'parent');
   assert.equal(
     resolveDisplayName({ display_name: 'Ada' } as never, user),
     'Ada',
+  );
+  assert.equal(
+    resolveDisplayName({ display_name: '   ' } as never, {
+      email: 'child@example.com',
+      user_metadata: { full_name: 'Sam Rivers' },
+    } as never),
+    'Sam Rivers',
   );
 });
