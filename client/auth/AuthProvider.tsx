@@ -33,7 +33,7 @@ export interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<string | null>;
   resetPassword: (email: string) => Promise<string | null>;
   updatePassword: (password: string) => Promise<string | null>;
-  signUp: (input: { email: string; password: string; fullName: string }) => Promise<SignUpResult>;
+  signUp: (input: { email: string; password: string; fullName: string; requestedRole: 'parent' | 'child' }) => Promise<SignUpResult>;
   signOut: () => Promise<string | null>;
   retryConfig: () => void;
   retryAccount: () => void;
@@ -181,14 +181,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [client]);
 
   const signUp = useCallback(
-    async (input: { email: string; password: string; fullName: string }): Promise<SignUpResult> => {
+    async (input: { email: string; password: string; fullName: string; requestedRole: 'parent' | 'child' }): Promise<SignUpResult> => {
       if (!client) {
         return { error: 'FamGuard is still starting up. Please try again in a moment.', info: null };
       }
       const { data, error } = await client.auth.signUp({
         email: input.email.trim(),
         password: input.password,
-        options: { data: { full_name: input.fullName.trim() } },
+        options: { data: { full_name: input.fullName.trim(), requested_role: input.requestedRole } },
       });
       if (error) return { error: error.message, info: null };
       if (!data.session) {
