@@ -736,7 +736,7 @@ test('F2 marking messages read writes read_at and nothing else', async () => {
   assert.equal(typeof payload.read_at, 'string');
   assert.equal(eqValue(log[0]?.calls ?? [], 'conversation_id'), 'conv-1');
   // Only messages the caller did not send are touched, matching the policy's USING clause.
-  assert.equal(eqValue(log[0]?.calls ?? [], 'sender_user_id'), 'user-me');
+  assert.equal(neqValue(log[0]?.calls ?? [], 'sender_user_id'), 'user-me');
 });
 
 /* ------------------------------------------------------------------- F3 */
