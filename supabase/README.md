@@ -18,8 +18,9 @@ reports the affected features honestly instead of pretending they succeed.
 | 2 | `migrations/20261107_0002_helper_function_hardening.sql` | **Read-only verification.** Displays the three membership helper definitions and security attributes. Inspect them before proceeding. |
 | 3 | `migrations/20261107_0003_helper_function_hardening_apply.sql` | Changes helper attributes only, and is blocked until the operator explicitly confirms that the bodies were reviewed. |
 | 4 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
+| 5 | `audit/verify_after_security_repair.sql` | **Read-only verification.** Confirms RLS, column grants, parent-only visibility and helper attributes after both migrations. |
 
-Run `0003_helper_function_hardening_apply.sql` and then `0001_security_repair.sql` in the Supabase SQL editor as separate transactions.
+Run `0003_helper_function_hardening_apply.sql` and then `0001_security_repair.sql` in the Supabase SQL editor as separate transactions. Finally, run `audit/verify_after_security_repair.sql` and save its read-only output.
 The `0002` verification file is SELECT-only and must be run separately first. Do not apply 0003
 until its three helper bodies have been reviewed and the confirmation line deliberately enabled.
 
