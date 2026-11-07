@@ -13,6 +13,7 @@ import type {
   SubscriptionRow,
   ZoneKind,
   ZoneRow,
+  AccountRole,
 } from './schema';
 
 type DbError = {
@@ -243,7 +244,7 @@ export async function setZoneEnabled(
 /* -------------------------------------------------------- location updates */
 
 /** Whether the member list behind a location result could be read completely. */
-export type MembershipVerification = 'verified' | 'unverified';
+export type MembershipVerification = 'verified' | 'unverified' | 'restricted';
 
 export interface LatestLocations {
   rows: LocationRow[];
@@ -258,6 +259,7 @@ export interface LatestLocations {
 export async function loadLatestLocations(
   client: SupabaseClient,
   familyId: string,
+  viewerRole: AccountRole | null = null,
 ): Promise<LatestLocations> {
   // Query the latest row per member instead of a family-wide window. A shared window
   // lets one frequently-updating member fill it, which used to hide a quieter member
@@ -277,6 +279,10 @@ export async function loadLatestLocations(
   // No rows here is not proof that the family is empty: row-level policies filter rather
   // than raise. Report the result as unverified instead of claiming nobody shares.
   if (userIds.length === 0) return { rows: [], membership: 'unverified' };
+
+  // location_updates SELECT is parent-only. A child must not interpret RLS-filtered
+  // empty results as proof that nobody has shared a location.
+  if (viewerRole === 'child') return { rows: [], membership: 'restricted' };
 
   const rows = await Promise.all(
     userIds.map(async (userId) => {
