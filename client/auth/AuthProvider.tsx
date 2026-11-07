@@ -69,6 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBooting(true);
     setConfigError(null);
     setConfigProblems([]);
+    // The recovery callback can be parsed before the auth-state listener is attached.
+    // Preserve the recovery intent from the URL so the new-password form is never skipped.
+    const recoveryUrl = `${window.location.search}${window.location.hash}`;
+    if (/[?&#]type=recovery(?:&|$)/i.test(recoveryUrl)) setRecoveryMode(true);
 
     void (async () => {
       try {
