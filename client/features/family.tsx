@@ -335,7 +335,7 @@ export function SubscriptionPanel({
   );
 
   return (
-    <SectionCard title="Subscription" aside="subscriptions (read only)">
+    <SectionCard title="Subscription" aside="subscriptions · family (read only)">
       {subscription.error ? (
         <Banner tone="error" title="Subscription unavailable">
           {subscription.error}
