@@ -376,7 +376,7 @@ export function SubscriptionPanel({
 }
 
 const CAPABILITIES: Array<{ label: string; state: string; tone: 'success' | 'warn' | 'neutral' }> = [
-  { label: 'Installable PWA', state: 'Static assets cached; live data needs network', tone: 'success' },
+  { label: 'PWA install support', state: 'Manifest and service worker ready; HTTPS deployment pending', tone: 'warn' },
   { label: 'Email/password sign-in', state: 'Working', tone: 'success' },
   { label: 'Family creation and invites', state: 'Calls your existing RPCs', tone: 'success' },
   { label: 'Family chat (text)', state: 'Working, polling refresh', tone: 'success' },
