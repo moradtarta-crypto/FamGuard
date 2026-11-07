@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadShared } from '../lib/resourceCache';
 
 export interface ResourceState<T> {
   data: T | null;
@@ -16,11 +17,18 @@ export interface Resource<T> extends ResourceState<T> {
  *
  * Supabase Realtime is not enabled for this project, so screens poll instead of
  * subscribing. `intervalMs = 0` disables polling (manual refresh only).
+ *
+ * `maxAgeMs` lets screens that need the same rows share one request: a successful result
+ * younger than that window is reused, and callers that load at the same time join a
+ * single in-flight request. `updatedAt` still reports when the rows were actually
+ * fetched, so shared data is never shown as fresher than it is, and `refresh()` always
+ * bypasses the shared result so a user-initiated retry reaches the database.
  */
 export function useResource<T>(
   key: string,
   loader: () => Promise<T>,
   intervalMs = 0,
+  maxAgeMs = 0,
 ): Resource<T> {
   const [state, setState] = useState<ResourceState<T>>({
     data: null,
@@ -32,6 +40,7 @@ export function useResource<T>(
   const previousKey = useRef<string | null>(null);
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
+  const forceNextRun = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -42,24 +51,26 @@ export function useResource<T>(
       setState({ data: null, error: null, loading: true, updatedAt: null });
     }
 
+    // A manual refresh must reach the database; later interval runs may reuse a result.
+    let bypassShared = forceNextRun.current;
+    forceNextRun.current = false;
+
     const run = async () => {
-      try {
-        const data = await loaderRef.current();
-        if (!active) return;
-        setState({ data, error: null, loading: false, updatedAt: Date.now() });
-      } catch (cause) {
-        if (!active) return;
-        const message =
-          cause instanceof Error && cause.message.length > 0
-            ? cause.message
-            : 'The database request failed.';
-        setState((previous) => ({
-          data: previous.data,
-          error: message,
-          loading: false,
-          updatedAt: previous.updatedAt,
-        }));
+      const result = await loadShared(key, loaderRef.current, bypassShared ? 0 : maxAgeMs);
+      bypassShared = false;
+      if (!active) return;
+
+      if (result.ok) {
+        setState({ data: result.data, error: null, loading: false, updatedAt: result.updatedAt });
+        return;
       }
+
+      setState((previous) => ({
+        data: previous.data,
+        error: result.error,
+        loading: false,
+        updatedAt: previous.updatedAt,
+      }));
     };
 
     void run();
@@ -70,9 +81,12 @@ export function useResource<T>(
       active = false;
       if (timer !== null) window.clearInterval(timer);
     };
-  }, [key, tick, intervalMs]);
+  }, [key, tick, intervalMs, maxAgeMs]);
 
-  const refresh = useCallback(() => setTick((value) => value + 1), []);
+  const refresh = useCallback(() => {
+    forceNextRun.current = true;
+    setTick((value) => value + 1);
+  }, []);
 
   return { ...state, refresh };
 }

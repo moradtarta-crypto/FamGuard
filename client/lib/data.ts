@@ -228,10 +228,23 @@ export async function setZoneEnabled(
 
 /* -------------------------------------------------------- location updates */
 
+/** Whether the member list behind a location result could be read completely. */
+export type MembershipVerification = 'verified' | 'unverified';
+
+export interface LatestLocations {
+  rows: LocationRow[];
+  /**
+   * `unverified` means `family_members` returned no rows for this family. That result is
+   * ambiguous — the family may have no members yet, or the rows may simply not be visible
+   * to this account — so callers must not present it as "nobody is sharing".
+   */
+  membership: MembershipVerification;
+}
+
 export async function loadLatestLocations(
   client: SupabaseClient,
   familyId: string,
-): Promise<LocationRow[]> {
+): Promise<LatestLocations> {
   // Query the latest row per member instead of a family-wide window. A shared window
   // lets one frequently-updating member fill it, which used to hide a quieter member
   // entirely rather than showing them as stale.
@@ -247,7 +260,9 @@ export async function loadLatestLocations(
   const userIds = Array.from(
     new Set(((memberRows ?? []) as { user_id: string }[]).map((row) => row.user_id)),
   );
-  if (userIds.length === 0) return [];
+  // No rows here is not proof that the family is empty: row-level policies filter rather
+  // than raise. Report the result as unverified instead of claiming nobody shares.
+  if (userIds.length === 0) return { rows: [], membership: 'unverified' };
 
   const rows = await Promise.all(
     userIds.map(async (userId) => {
@@ -257,6 +272,9 @@ export async function loadLatestLocations(
         .eq('family_id', familyId)
         .eq('child_user_id', userId)
         .order('recorded_at', { ascending: false })
+        // A tie on recorded_at must still select one stable row, otherwise the same query
+        // can report a different update between polls.
+        .order('id', { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -265,9 +283,15 @@ export async function loadLatestLocations(
     }),
   );
 
-  return rows
-    .filter((row): row is LocationRow => row !== null)
-    .sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : a.recorded_at > b.recorded_at ? -1 : 0));
+  return {
+    rows: rows
+      .filter((row): row is LocationRow => row !== null)
+      .sort((a, b) => {
+        if (a.recorded_at !== b.recorded_at) return a.recorded_at < b.recorded_at ? 1 : -1;
+        return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+      }),
+    membership: 'verified',
+  };
 }
 
 export interface NewLocationInput {
@@ -312,6 +336,9 @@ export async function loadConversation(
     .select(COLUMNS.conversation)
     .eq('family_id', familyId)
     .order('created_at', { ascending: true })
+    // Every caller must resolve to the same row, so a tie on created_at is broken by id
+    // instead of being left to the database's discretion.
+    .order('id', { ascending: true })
     .limit(1)
     .maybeSingle();
 
