@@ -261,6 +261,11 @@ export async function loadLatestLocations(
   familyId: string,
   viewerRole: AccountRole | null = null,
 ): Promise<LatestLocations> {
+  // location_updates SELECT is parent-only. Check the known role before any read so a
+  // child neither queries the family roster unnecessarily nor mistakes filtered rows
+  // for evidence that nobody has shared a location.
+  if (viewerRole === 'child') return { rows: [], membership: 'restricted' };
+
   // Query the latest row per member instead of a family-wide window. A shared window
   // lets one frequently-updating member fill it, which used to hide a quieter member
   // entirely rather than showing them as stale.
@@ -279,10 +284,6 @@ export async function loadLatestLocations(
   // No rows here is not proof that the family is empty: row-level policies filter rather
   // than raise. Report the result as unverified instead of claiming nobody shares.
   if (userIds.length === 0) return { rows: [], membership: 'unverified' };
-
-  // location_updates SELECT is parent-only. A child must not interpret RLS-filtered
-  // empty results as proof that nobody has shared a location.
-  if (viewerRole === 'child') return { rows: [], membership: 'restricted' };
 
   const rows = await Promise.all(
     userIds.map(async (userId) => {
