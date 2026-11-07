@@ -3,7 +3,7 @@
 -- DO NOT RUN THIS FILE AS-IS.
 --
 -- The migration changes three independent function attributes: SECURITY mode,
--- volatility and search_path. Their exact pre-migration values were not uniformally
+-- volatility and search_path. Their exact pre-migration values were not uniformly
 -- verified in this repository. A generic RESET search_path + SECURITY INVOKER can
 -- reintroduce recursive RLS failures or weaken a function that was already hardened.
 --
