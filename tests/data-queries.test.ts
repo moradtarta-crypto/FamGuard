@@ -134,10 +134,10 @@ function neqValue(calls: Calls, column: string): unknown {
 }
 
 /** Every `order(...)` the query sent, in the order it was applied. */
-function orders(calls: Calls): Array<[string, { ascending?: boolean }]> {
+function orders(calls: Calls): Array<[string, { ascending?: boolean; nullsFirst?: boolean }]> {
   return calls
     .filter(([name]) => name === 'order')
-    .map(([, value]) => value as [string, { ascending?: boolean }]);
+    .map(([, value]) => value as [string, { ascending?: boolean; nullsFirst?: boolean }]);
 }
 
 /* ------------------------------------------------------------------- H-1 */
@@ -609,6 +609,7 @@ test('L-5 a recorded_at tie still yields one stable latest location per member',
 
   // log[0] is the member read; log[1] is the per-member location read.
   assert.deepEqual(orders(log[1]?.calls ?? []), [
+    ['received_at', { ascending: false, nullsFirst: false }],
     ['recorded_at', { ascending: false }],
     ['id', { ascending: false }],
   ]);
