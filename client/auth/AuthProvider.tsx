@@ -184,6 +184,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async (): Promise<string | null> => {
     if (!client) return null;
+    // Drop shared screen data before the session ends, so nothing loaded for this account
+    // can be shown to whoever signs in next — even if the sign-out request itself fails.
+    resetSharedCache();
+    cachedForUser.current = null;
     const { error } = await client.auth.signOut();
     return error ? error.message : null;
   }, [client]);
