@@ -332,6 +332,11 @@ export function SosPanel({
         </Banner>
       ) : null}
       {error ? <Banner tone="error" title="SOS not sent">{error}</Banner> : null}
+      {warning ? (
+        <Banner tone="warn" title="SOS sent without your location">
+          {warning}
+        </Banner>
+      ) : null}
       {ackError ? <Banner tone="error" title="Acknowledgement failed">{ackError}</Banner> : null}
 
       {role === 'child' || role === null ? (
