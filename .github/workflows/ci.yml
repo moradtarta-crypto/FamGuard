@@ -34,3 +34,9 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+      - name: Verify PWA assets are included in production output
+        run: |
+          test -f dist/public/manifest.webmanifest
+          test -f dist/public/sw.js
+          test -f dist/public/icons/famguard.svg
