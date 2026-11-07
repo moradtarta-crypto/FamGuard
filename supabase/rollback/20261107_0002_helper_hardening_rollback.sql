@@ -1,28 +1,18 @@
--- FamGuard — rollback for 20261107_0002_helper_function_hardening.sql.
+-- FamGuard — manual rollback notes for 20261107_0002_helper_function_hardening.sql.
 --
--- Restores the original attributes. If you applied a corrective body from section C of the
--- migration, paste the captured definition from
--- supabase/audit/capture_current_definitions.sql (section 3) back in place first — the
--- statements below only touch SECURITY DEFINER / volatility / search_path, not bodies.
-
-begin;
-
-do $$
-declare
-  fn record;
-begin
-  for fn in
-    select p.oid::regprocedure as signature
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname in ('is_family_member', 'is_parent_in_family', 'is_child_in_family')
-  loop
-    execute format('alter function %s reset search_path', fn.signature);
-    execute format('alter function %s security invoker', fn.signature);
-    raise notice 'restored attributes on %', fn.signature;
-  end loop;
-end;
-$$;
-
-commit;
+-- DO NOT RUN THIS FILE AS-IS.
+--
+-- The migration changes three independent function attributes: SECURITY mode,
+-- volatility and search_path. Their exact pre-migration values were not uniformally
+-- verified in this repository. A generic RESET search_path + SECURITY INVOKER can
+-- reintroduce recursive RLS failures or weaken a function that was already hardened.
+--
+-- Restore each function from the saved output of:
+--   supabase/audit/capture_current_definitions.sql (function definitions / attributes)
+--
+-- Generate explicit ALTER FUNCTION statements for each exact signature, restoring:
+--   1. SECURITY INVOKER or SECURITY DEFINER exactly as captured;
+--   2. STABLE / IMMUTABLE / VOLATILE exactly as captured;
+--   3. the exact prior search_path setting (or RESET only if it was absent).
+--
+-- Do not apply a guessed rollback. This file intentionally performs no SQL changes.
