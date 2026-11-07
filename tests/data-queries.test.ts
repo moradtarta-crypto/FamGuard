@@ -488,6 +488,51 @@ test('M-1 a forced load bypasses sharing and a failure is never shared', async (
   assert.equal(retry.ok, false);
 });
 
+test('M-1-2 an old in-flight request cannot remove a new session request after cache reset', async () => {
+  resetSharedCache();
+  let resolveOld!: (value: string) => void;
+  const oldRequest = loadShared(
+    'family-data',
+    () => new Promise<string>((resolve) => { resolveOld = resolve; }),
+    5000,
+  );
+
+  // Let the old request register itself before simulating an account/session change.
+  await Promise.resolve();
+  resetSharedCache();
+
+  let resolveNew!: (value: string) => void;
+  let unexpectedLoads = 0;
+  const newRequest = loadShared(
+    'family-data',
+    () => new Promise<string>((resolve) => { resolveNew = resolve; }),
+    5000,
+  );
+  await Promise.resolve();
+
+  // The old request settles after the new one has claimed the same key.
+  resolveOld('old account');
+  const oldResult = await oldRequest;
+  assert.equal(oldResult.ok && oldResult.data, 'old account');
+
+  // A third caller must still join the new request, not start another database read.
+  const joinedRequest = loadShared(
+    'family-data',
+    async () => {
+      unexpectedLoads += 1;
+      return 'unexpected duplicate';
+    },
+    5000,
+  );
+  assert.equal(unexpectedLoads, 0);
+
+  resolveNew('new account');
+  const [newResult, joinedResult] = await Promise.all([newRequest, joinedRequest]);
+  assert.equal(newResult.ok && newResult.data, 'new account');
+  assert.equal(joinedResult.ok && joinedResult.data, 'new account');
+  assert.equal(unexpectedLoads, 0);
+});
+
 /* ------------------------------------------------------------------- M-2 */
 
 test('M-2 loadMessages breaks a created_at tie by id, so the order is stable', async () => {
