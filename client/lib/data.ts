@@ -232,20 +232,42 @@ export async function loadLatestLocations(
   client: SupabaseClient,
   familyId: string,
 ): Promise<LocationRow[]> {
-  const { data, error } = await client
-    .from('location_updates')
-    .select(COLUMNS.location)
-    .eq('family_id', familyId)
-    .order('recorded_at', { ascending: false })
-    .limit(200);
+  // Query the latest row per member instead of a family-wide window. A shared window
+  // lets one frequently-updating member fill it, which used to hide a quieter member
+  // entirely rather than showing them as stale.
+  const { data: memberRows, error: memberError } = await client
+    .from('family_members')
+    .select('user_id')
+    .eq('family_id', familyId);
 
-  if (error) fail(error, 'read location updates');
+  // A refused or failed member read must surface as an error. Degrading to "no
+  // locations" would report a permission problem as "nobody is sharing".
+  if (memberError) fail(memberError, 'read the family members for locations');
 
-  const latest = new Map<string, LocationRow>();
-  for (const row of (data ?? []) as LocationRow[]) {
-    if (!latest.has(row.child_user_id)) latest.set(row.child_user_id, row);
-  }
-  return Array.from(latest.values());
+  const userIds = Array.from(
+    new Set(((memberRows ?? []) as { user_id: string }[]).map((row) => row.user_id)),
+  );
+  if (userIds.length === 0) return [];
+
+  const rows = await Promise.all(
+    userIds.map(async (userId) => {
+      const { data, error } = await client
+        .from('location_updates')
+        .select(COLUMNS.location)
+        .eq('family_id', familyId)
+        .eq('child_user_id', userId)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) fail(error, 'read location updates');
+      return (data as LocationRow | null) ?? null;
+    }),
+  );
+
+  return rows
+    .filter((row): row is LocationRow => row !== null)
+    .sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : a.recorded_at > b.recorded_at ? -1 : 0));
 }
 
 export interface NewLocationInput {
@@ -301,14 +323,23 @@ export async function createConversation(
   client: SupabaseClient,
   familyId: string,
 ): Promise<ConversationRow> {
-  const { data, error } = await client
-    .from('conversations')
-    .insert({ family_id: familyId })
-    .select(COLUMNS.conversation)
-    .single();
+  // Two members can create a conversation in the same round-trip. Making the insert
+  // unique would need a schema change, so converge instead: read back the canonical
+  // (oldest) conversation and return that. Both callers then target a single row, and
+  // any duplicate row stays inert because nothing ever resolves to it.
+  const { error } = await client.from('conversations').insert({ family_id: familyId });
 
   if (error) fail(error, 'create the family conversation');
-  return data as ConversationRow;
+
+  const canonical = await loadConversation(client, familyId);
+  if (!canonical) {
+    throw new DataError(
+      'Could not start the family chat: the conversation could not be read back after it was created.',
+      null,
+      false,
+    );
+  }
+  return canonical;
 }
 
 export async function loadMessages(
@@ -316,15 +347,19 @@ export async function loadMessages(
   conversationId: string,
   limit = 200,
 ): Promise<MessageRow[]> {
+  // Ask for the newest window, never the oldest: an ascending LIMIT silently freezes
+  // the chat once a conversation grows past `limit` rows, with no visible error.
   const { data, error } = await client
     .from('messages')
     .select(COLUMNS.message)
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) fail(error, 'read messages');
-  return (data ?? []) as MessageRow[];
+
+  // Callers render oldest-first, so restore chronological order inside the window.
+  return ((data ?? []) as MessageRow[]).slice().reverse();
 }
 
 export interface NewMessageInput {
