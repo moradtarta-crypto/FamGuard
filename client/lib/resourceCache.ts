@@ -62,7 +62,8 @@ export async function loadShared<T>(
   // rows it returns belong to the previous session and must not be stored.
   const startedIn = generation;
 
-  inFlight.set(key, request as Promise<SharedResult<unknown>>);
+  const sharedRequest = request as Promise<SharedResult<unknown>>;
+  inFlight.set(key, sharedRequest);
 
   try {
     const result = await request;
@@ -74,7 +75,9 @@ export async function loadShared<T>(
     }
     return result;
   } finally {
-    inFlight.delete(key);
+    // A cache reset may have allowed a newer account's request to reuse this key.
+    // An older request must never remove that newer in-flight entry when it settles.
+    if (inFlight.get(key) === sharedRequest) inFlight.delete(key);
   }
 }
 
