@@ -370,7 +370,7 @@ test('F1 an unmigrated database explains the missing conversation function witho
     (error: unknown) =>
       error instanceof DataError &&
       /required database function is not installed/i.test(error.message) &&
-      /20261107_0001_security_repair\\.sql/.test(error.message),
+      /20261107_0001_security_repair\.sql/.test(error.message),
   );
 
   assert.deepEqual(rpcLog.map((entry) => entry.name), ['ensure_family_conversation']);
