@@ -62,14 +62,19 @@ test('RLS and privilege errors are reported as blocked by policy', () => {
   assert.equal(rls.blockedByPolicy, true);
   assert.equal(rls.code, '42501');
   assert.match(rls.message, /Loading SOS alerts/);
+  assert.match(rls.message, /refused by your Supabase row level security policies/);
+  // The raw Postgres text is kept for diagnostics, and no RLS change is offered.
   assert.match(rls.message, /permission denied for table sos_events/);
+  assert.match(rls.message, /does not change your database/);
+  assert.doesNotMatch(rls.message, /service_role/i);
 
   const filtered = describeDbError({ code: 'PGRST301', message: 'JWT expired' }, 'Loading');
-  assert.equal(filtered.blockedByPolicy, true);
+  assert.equal(filtered.blockedByPolicy, false);
+  assert.match(filtered.message, /session is no longer valid/);
 
   const missing = describeDbError({ code: '42P01', message: 'relation does not exist' }, 'Loading');
   assert.equal(missing.blockedByPolicy, false);
-  assert.match(missing.message, /not present|does not exist/i);
+  assert.match(missing.message, /missing from the public schema/i);
 });
 
 test('describeDbError never leaks a service-role hint or invents a success', () => {
