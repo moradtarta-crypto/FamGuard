@@ -29,7 +29,10 @@ export interface AuthContextValue {
   accountError: string | null;
   configError: string | null;
   configProblems: string[];
+  recoveryMode: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
+  resetPassword: (email: string) => Promise<string | null>;
+  updatePassword: (password: string) => Promise<string | null>;
   signUp: (input: { email: string; password: string; fullName: string }) => Promise<SignUpResult>;
   signOut: () => Promise<string | null>;
   retryConfig: () => void;
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [configProblems, setConfigProblems] = useState<string[]>([]);
   const [configAttempt, setConfigAttempt] = useState(0);
   const [session, setSession] = useState<Session | null>(null);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [account, setAccount] = useState<AccountContext | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -103,7 +107,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 2. Keep the session in sync with Supabase auth events (sign in, refresh, sign out).
   useEffect(() => {
     if (!client) return;
-    const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = client.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
+      if (event === 'SIGNED_OUT') setRecoveryMode(false);
       // Rows loaded for one account must never be handed to the next one, so the shared
       // screen cache is dropped whenever the authenticated user changes — including a
       // sign-out, where the new id is `null`.
@@ -160,6 +166,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [client],
   );
 
+  const resetPassword = useCallback(async (email: string): Promise<string | null> => {
+    if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
+    const redirectTo = new URL(window.location.pathname, window.location.origin).toString();
+    const { error } = await client.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    return error ? error.message : null;
+  }, [client]);
+
+  const updatePassword = useCallback(async (password: string): Promise<string | null> => {
+    if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
+    const { error } = await client.auth.updateUser({ password });
+    if (!error) setRecoveryMode(false);
+    return error ? error.message : null;
+  }, [client]);
+
   const signUp = useCallback(
     async (input: { email: string; password: string; fullName: string }): Promise<SignUpResult> => {
       if (!client) {
@@ -213,7 +233,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accountError,
       configError,
       configProblems,
+      recoveryMode,
       signIn,
+      resetPassword,
+      updatePassword,
       signUp,
       signOut,
       retryConfig,
@@ -228,7 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accountError,
       configError,
       configProblems,
+      recoveryMode,
       signIn,
+      resetPassword,
+      updatePassword,
       signUp,
       signOut,
       retryConfig,
