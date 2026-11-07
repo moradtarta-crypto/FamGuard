@@ -55,8 +55,8 @@ export function Onboarding({
   const onJoin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = token.trim();
-    if (trimmed.length < 6) {
-      setJoinError('Paste the full invite token you received from a parent.');
+    if (!/^[a-f0-9]{64}$/i.test(trimmed)) {
+      setJoinError('The invite token must be exactly 64 hexadecimal characters. Ask the parent to copy the full token again.');
       return;
     }
 
@@ -128,6 +128,7 @@ export function Onboarding({
                 placeholder="Paste the token from your parent"
                 autoComplete="off"
                 spellCheck={false}
+                maxLength={64}
                 required
               />
             </label>
