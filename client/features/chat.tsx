@@ -26,7 +26,7 @@ export function ChatPanel({
   const conversation = useResource(
     `conversation:${familyId}`,
     () => loadConversation(client, familyId),
-    0,
+    15000,
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
