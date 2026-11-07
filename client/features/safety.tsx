@@ -333,7 +333,7 @@ export function SosPanel({
   return (
     <SectionCard
       title="SOS alerts"
-      aside={`sos_events · ${open.length} open`}
+      aside={canReadHistory ? `sos_events · ${open.length} open` : 'sos_events · parent-only history'}
       actions={
         <button type="button" className="ghost" onClick={events.refresh}>
           Refresh
@@ -454,6 +454,7 @@ export function ZonesPanel({
 
   const mine = latest.data?.rows.find((row) => row.child_user_id === account.userId) ?? null;
   const membershipUnverified = latest.data?.membership === 'unverified';
+  const locationHistoryRestricted = latest.data?.membership === 'restricted';
 
   const [label, setLabel] = useState('');
   const [kind, setKind] = useState<ZoneKind>('safe');
@@ -550,6 +551,12 @@ export function ZonesPanel({
         <Note>
           Distances are hidden because the family member list could not be verified, so the
           latest location for this account cannot be confirmed.
+        </Note>
+      ) : null}
+      {locationHistoryRestricted ? (
+        <Note>
+          Zones are visible, but this account cannot read saved location history. Distances are
+          therefore hidden; a parent can view the latest shared positions.
         </Note>
       ) : null}
 
