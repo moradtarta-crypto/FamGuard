@@ -167,7 +167,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
           {mode === 'sign-in'
             ? 'Sign in with the email and password for your FamGuard account.'
             : mode === 'sign-up'
-              ? 'This selection guides setup only. Your actual parent or child permissions are assigned securely by your family membership.'
+              ? 'This is a preference only. Your actual parent or child role and permissions are assigned by the family membership workflow.'
               : mode === 'reset'
                 ? 'Enter your account email. If it is registered, Supabase will send a secure reset link.'
                 : 'Choose a new password for your FamGuard account.'}
