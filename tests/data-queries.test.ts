@@ -360,29 +360,26 @@ test('H-4 concurrent conversation creation converges on one canonical conversati
 
 /* ------------------------------------------------------------------- F1 */
 
-test('F1 an unmigrated database explains the missing conversation function', async () => {
-  const { client } = makeClient({
-    conversations: (calls, op) =>
-      op === 'insert'
-        ? {
-            data: null,
-            error: {
-              code: '42501',
-              message: 'new row violates row-level security policy for table "conversations"',
-            },
-          }
-        : { data: null, error: null },
+test('F1 an unmigrated database explains the missing conversation function without direct INSERT', async () => {
+  const { client, log, rpcLog } = makeClient({
+    conversations: () => ({ data: null, error: null }),
   });
 
   await assert.rejects(
     () => createConversation(client, 'fam-1'),
     (error: unknown) =>
       error instanceof DataError &&
-      /security migration/i.test(error.message) &&
-      /20261107_0001_security_repair\.sql/.test(error.message),
+      /required database function is not installed/i.test(error.message) &&
+      /20261107_0001_security_repair\\.sql/.test(error.message),
+  );
+
+  assert.deepEqual(rpcLog.map((entry) => entry.name), ['ensure_family_conversation']);
+  assert.equal(
+    log.filter((entry) => entry.table === 'conversations' && entry.op === 'insert').length,
+    0,
+    'the client must not attempt an INSERT that RLS is designed to reject',
   );
 });
-
 test('F1 a non-missing RPC failure is reported as itself, not as a migration hint', async () => {
   const { client } = makeClient(
     { conversations: () => ({ data: null, error: null }) },
