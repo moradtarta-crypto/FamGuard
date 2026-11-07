@@ -6,7 +6,7 @@ import type { AccountRole, FamilyMemberRow, ProfileRow } from './schema';
 export interface AccountContext {
   userId: string;
   email: string | null;
-  /** Null when the signed-in user has no profiles row yet (no trigger creates one). */
+  /** Null only if the profile bootstrap trigger has not produced a row. */
   profile: ProfileRow | null;
   displayName: string;
   memberships: FamilyMemberRow[];
