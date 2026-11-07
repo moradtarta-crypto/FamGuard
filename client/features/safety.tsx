@@ -73,6 +73,7 @@ export function ShareLocationCard({
     LOCATION_CACHE_MS,
   );
   const rows = latest.data?.rows ?? [];
+  const canShare = viewerRole === 'child';
   const membershipUnverified = latest.data?.membership === 'unverified';
   const locationHistoryRestricted = latest.data?.membership === 'restricted';
   const mine = rows.find((row) => row.child_user_id === account.userId) ?? null;
@@ -110,9 +111,11 @@ export function ShareLocationCard({
       title="Share my location"
       aside="location_updates"
       actions={
-        <button type="button" className="primary" onClick={onShare} disabled={pending}>
-          {pending ? 'Sharing…' : 'Share now'}
-        </button>
+        canShare ? (
+          <button type="button" className="primary" onClick={onShare} disabled={pending}>
+            {pending ? 'Sharing…' : 'Share now'}
+          </button>
+        ) : null
       }
     >
       {error ? <Banner tone="error" title="Location not shared">{error}</Banner> : null}
@@ -137,11 +140,10 @@ export function ShareLocationCard({
         <MembershipUnverified />
       ) : locationHistoryRestricted ? (
         <Note>Your account can share its location, but only a parent can view location history. Ask a parent to confirm that your update arrived.</Note>
+      ) : viewerRole === 'parent' ? (
+        <Note>Location sharing is available to child accounts. Use Latest locations below to view your family’s shared positions.</Note>
       ) : (
-        <EmptyState title="You have not shared a location yet">
-          Sharing asks the browser for permission once, then stores a single row in
-          <code> location_updates</code>. Nothing is shared automatically.
-        </EmptyState>
+        <Note>Your family role could not be verified, so location sharing is disabled for this account.</Note>
       )}
 
       <Note>
@@ -351,7 +353,7 @@ export function SosPanel({
       ) : null}
       {ackError ? <Banner tone="error" title="Acknowledgement failed">{ackError}</Banner> : null}
 
-      {role === 'child' || role === null ? (
+      {role === 'child' ?
         <form className="form" onSubmit={onRaise}>
           <label className="field">
             <span>Note (optional)</span>
