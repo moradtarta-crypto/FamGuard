@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { raiseSos } from './data';
+import type { SosSaved } from './data';
 import { currentPositionForSos } from './geolocation';
 import type { BrowserLocation } from './geolocation';
-import type { SosEventRow } from './schema';
 
 export interface NewSosRequest {
   familyId: string;
@@ -11,7 +11,12 @@ export interface NewSosRequest {
 }
 
 export interface SosSubmission {
-  event: SosEventRow;
+  /**
+   * What the database confirmed it stored. The row itself cannot be read back by the child
+   * that wrote it (`sos_events` SELECT is parent only), so this is the write acknowledgement
+   * rather than a copy of the stored record.
+   */
+  event: SosSaved;
   /** `null` when no position could be read; the alert is still recorded. */
   coordinates: BrowserLocation | null;
 }
