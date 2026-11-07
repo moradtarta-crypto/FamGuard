@@ -362,7 +362,14 @@ export function SosPanel({
 
       {events.loading && !events.data ? <SkeletonRows count={2} /> : null}
       {!events.loading && !events.error && (events.data ?? []).length === 0 ? (
-        <EmptyState title="No SOS alerts">Nothing has been raised in this family.</EmptyState>
+        role === 'child' ? (
+          <EmptyState title="No alerts to show">
+            Your family is notified as soon as you send an alert. Alerts you sent appear here once
+            this account is allowed to read them.
+          </EmptyState>
+        ) : (
+          <EmptyState title="No SOS alerts">Nothing has been raised in this family.</EmptyState>
+        )
       ) : null}
 
       {(events.data ?? []).length > 0 ? (
@@ -534,11 +541,13 @@ export function ZonesPanel({
 
       {zones.loading && !zones.data ? <SkeletonRows count={2} /> : null}
       {!zones.loading && !zones.error && (zones.data ?? []).length === 0 ? (
-        <EmptyState title="No zones yet">
-          {role === 'parent'
-            ? 'Create a safe or danger zone below.'
-            : 'A parent has not created any zones for this family yet.'}
-        </EmptyState>
+        role === 'parent' ? (
+          <EmptyState title="No zones yet">Create a safe or danger zone below.</EmptyState>
+        ) : (
+          <EmptyState title="No zones visible">
+            A parent can create safe and danger zones. None are visible to this account yet.
+          </EmptyState>
+        )
       ) : null}
 
       {(zones.data ?? []).length > 0 ? (
