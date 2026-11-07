@@ -256,7 +256,12 @@ export function SosPanel({
   account: AccountContext;
   role: AccountRole | null;
 }) {
-  const events = useResource(`sos:${familyId}`, () => loadSosEvents(client, familyId), 15000);
+  const canReadHistory = role === 'parent';
+  const events = useResource(
+    `sos:${familyId}:${canReadHistory ? 'parent' : 'restricted'}`,
+    () => (canReadHistory ? loadSosEvents(client, familyId) : Promise.resolve([])),
+    15000,
+  );
   const members = useResource(
     `sos-members:${familyId}`,
     () => loadFamilyMembers(client, familyId),
@@ -370,9 +375,9 @@ export function SosPanel({
       {events.loading && !events.data ? <SkeletonRows count={2} /> : null}
       {!events.loading && !events.error && (events.data ?? []).length === 0 ? (
         role === 'child' ? (
-          <EmptyState title="No alerts to show">
-            Your family is notified as soon as you send an alert. Alerts you sent appear here once
-            this account is allowed to read them.
+          <EmptyState title="SOS history is not available to this account">
+            Your alert is stored for a parent to view in FamGuard. This account cannot read the
+            family SOS history under the current access rules.
           </EmptyState>
         ) : (
           <EmptyState title="No SOS alerts">Nothing has been raised in this family.</EmptyState>
@@ -417,8 +422,8 @@ export function SosPanel({
       ) : null}
 
       <Note>
-        Alerts are stored rows only. No push or email notification service is configured, so nobody
-        is notified outside the app; the list polls every 15 seconds.
+        Alerts are stored rows only. Parents can see them when they open FamGuard; this build sends
+        no push, SMS or email notifications. Parent history refreshes every 15 seconds.
       </Note>
     </SectionCard>
   );
