@@ -4,7 +4,7 @@ import { useAuth } from './AuthProvider';
 type Mode = 'sign-in' | 'sign-up' | 'reset' | 'update';
 
 export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean }) {
-  const { signIn, signUp, resetPassword, updatePassword } = useAuth();
+  const { signIn, signUp, resetPassword, resendConfirmation, updatePassword } = useAuth();
   const [mode, setMode] = useState<Mode>(recoveryMode ? 'update' : 'sign-in');
 
   useEffect(() => {
@@ -15,6 +15,7 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
   const [fullName, setFullName] = useState('');
   const [requestedRole, setRequestedRole] = useState<'parent' | 'child'>('parent');
   const [pending, setPending] = useState(false);
+  const [resendPending, setResendPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -22,6 +23,26 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
     setMode(next);
     setError(null);
     setInfo(null);
+  };
+
+  const onResendConfirmation = async () => {
+    if (!email.trim()) {
+      setError('Enter your account email first.');
+      setInfo(null);
+      return;
+    }
+    setResendPending(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const message = await resendConfirmation(email);
+      if (message) setError(message);
+      else setInfo('If this account still needs confirmation, a new confirmation email has been requested. Check your inbox and spam folder.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not request a confirmation email.');
+    } finally {
+      setResendPending(false);
+    }
   };
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -163,7 +184,14 @@ export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean })
           </button>
         </form>
 
-        {mode === 'sign-in' ? <button type="button" className="ghost" onClick={() => switchMode('reset')}>Forgot password?</button> : null}
+        {mode === 'sign-in' ? (
+          <div className="auth-secondary-actions">
+            <button type="button" className="ghost" onClick={() => switchMode('reset')}>Forgot password?</button>
+            <button type="button" className="ghost" onClick={() => void onResendConfirmation()} disabled={resendPending}>
+              {resendPending ? 'Requesting…' : 'Resend confirmation email'}
+            </button>
+          </div>
+        ) : null}
         {mode === 'reset' || mode === 'update' ? (
           <button type="button" className="ghost" onClick={() => switchMode('sign-in')}>Back to sign in</button>
         ) : null}
