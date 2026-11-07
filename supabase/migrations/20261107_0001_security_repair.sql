@@ -151,43 +151,25 @@ grant update (acknowledged_at, acknowledged_by) on table public.sos_events to au
 --    Without a policy the table is deny-all, so the invite list rendered "No invites yet"
 --    while invites existed. The hash is still never exposed to the API.
 -- ---------------------------------------------------------------------------
-drop policy if exists "parents read family invites" on public.family_invites;
-create policy "parents read family invites"
-  on public.family_invites
-  for select
-  to authenticated
-  using (public.is_parent_in_family(family_id));
-
+-- The parent-only SELECT policy already exists in the audited database; preserve it.
 revoke select on table public.family_invites from public;
 revoke select on table public.family_invites from anon, authenticated;
 grant select (id, family_id, created_by, expires_at, consumed_by, consumed_at, created_at)
   on table public.family_invites to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 7. zones: every family member may read the family's zones
+-- 7. zones
 --
---    The existing ALL policy is parent-scoped, so a child saw an empty list and was told no
---    zones existed. Reading is now member-wide; writing is untouched and still parent-only
---    with created_by pinned to auth.uid().
+--    The family-member SELECT policy and parent-only write policies were already
+--    verified in the live schema. Do not replace them here; preserving the audited
+--    policy definitions also keeps this migration's rollback bounded.
+--
 -- ---------------------------------------------------------------------------
-drop policy if exists "zones readable by family members" on public.zones;
-create policy "zones readable by family members"
-  on public.zones
-  for select
-  to authenticated
-  using (public.is_family_member(family_id));
-
--- ---------------------------------------------------------------------------
--- 8. sos_events: a child may read the alerts it raised (acknowledgement feedback)
---    Parents keep their existing family-wide SELECT policy.
--- ---------------------------------------------------------------------------
-drop policy if exists "child reads own sos" on public.sos_events;
-create policy "child reads own sos"
-  on public.sos_events
-  for select
-  to authenticated
-  using (child_user_id = auth.uid() and public.is_family_member(family_id));
-
+-- 8. SOS history remains parent-only.
+--
+--    A child SELECT policy was explicitly declined. The client does not request
+--    child SOS history and this migration must not widen that visibility.
+--
 -- ---------------------------------------------------------------------------
 -- 9. profiles: family members may read each other's profile
 --
@@ -203,20 +185,12 @@ create policy "family members read each other profiles"
   using (public.famguard_shares_family_with(user_id));
 
 -- ---------------------------------------------------------------------------
--- 10. subscriptions: the whole family may read the subscription row, but payment
---     identifiers stay with the parent who owns it.
+-- 10. subscriptions
 --
---     The existing policy is pinned to parent_user_id = auth.uid(), so a co-parent saw no
---     subscription at all. Status/plan/dates become member-readable; payment_network and
---     transaction_id are removed from the API's readable columns.
+--     Keep the existing parent-owned SELECT policy. The safe column-level SELECT
+--     grants below are already the audited intended boundary; payment identifiers
+--     remain unavailable to authenticated clients.
 -- ---------------------------------------------------------------------------
-drop policy if exists "family members read family subscription" on public.subscriptions;
-create policy "family members read family subscription"
-  on public.subscriptions
-  for select
-  to authenticated
-  using (public.is_family_member(family_id));
-
 revoke select on table public.subscriptions from public;
 revoke select on table public.subscriptions from anon, authenticated;
 grant select (id, parent_user_id, family_id, status, plan_code, starts_at, ends_at, verified_at, created_at)
