@@ -4,12 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { ConfigError, createSupabaseClient, fetchSupabaseConfig } from '../lib/supabase';
 import { loadAccount, type AccountContext } from '../lib/account';
+import { resetSharedCache } from '../lib/resourceCache';
 
 export type AuthPhase = 'loading' | 'config-error' | 'signed-out' | 'signed-in';
 
