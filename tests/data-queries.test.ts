@@ -713,3 +713,202 @@ test('L-7 a refused database write is reported as an error, never as a warning',
   assert.match(outcome.error, /refused by your Supabase row level security policies/i);
   assert.match(outcome.error, /permission denied for table sos_events/i);
 });
+
+/* ------------------------------------------------------------------- F2 */
+
+test('F2 marking messages read writes read_at and nothing else', async () => {
+  const { client, log } = makeClient({ messages: () => ({ data: null, error: null }) });
+
+  await markConversationRead(client, 'conv-1', 'user-me');
+
+  const payload = recorded(log[0]?.calls ?? [], 'update') as Record<string, unknown>;
+  // The column grant on `messages` allows UPDATE (read_at) only, so the payload must not
+  // carry body, sender_user_id, kind, conversation_id or created_at.
+  assert.deepEqual(Object.keys(payload), ['read_at']);
+  assert.equal(typeof payload.read_at, 'string');
+  assert.equal(eqValue(log[0]?.calls ?? [], 'conversation_id'), 'conv-1');
+  // Only messages the caller did not send are touched, matching the policy's USING clause.
+  assert.equal(eqValue(log[0]?.calls ?? [], 'sender_user_id'), 'user-me');
+});
+
+/* ------------------------------------------------------------------- F3 */
+
+const locationInput = {
+  familyId: 'fam-1',
+  childUserId: 'child-1',
+  latitude: 12.5,
+  longitude: -7.25,
+  accuracyM: 8,
+  batteryPercent: 64,
+};
+
+/**
+ * Reproduces the audited defect: the write is accepted, but any read of the stored row is
+ * filtered by RLS, so `INSERT … RETURNING` yields no rows and PostgREST answers PGRST116.
+ */
+function insertRefusedOnReadBack(calls: Calls): Terminal {
+  if (recorded(calls, 'single') || recorded(calls, 'maybeSingle')) {
+    return {
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    };
+  }
+  return { data: null, error: null };
+}
+
+test('F3 a shared location is reported as saved although the row cannot be read back', async () => {
+  const { client, log } = makeClient({ location_updates: (calls) => insertRefusedOnReadBack(calls) });
+
+  const saved = await shareLocation(client, locationInput);
+
+  assert.equal(saved.familyId, 'fam-1');
+  assert.equal(saved.childUserId, 'child-1');
+  assert.equal(typeof saved.recordedAt, 'string');
+
+  // The insert must be bare: asking for the row back is what produced the false failure.
+  const calls = log[0]?.calls ?? [];
+  assert.equal(recorded(calls, 'select'), undefined);
+  assert.equal(recorded(calls, 'single'), undefined);
+  const inserted = recorded(calls, 'insert') as Record<string, unknown>;
+  assert.equal(inserted.child_user_id, 'child-1');
+  assert.equal(inserted.latitude, 12.5);
+});
+
+test('F3 a refused location write is still an error, not a success', async () => {
+  const { client } = makeClient({
+    location_updates: () => ({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table location_updates' },
+    }),
+  });
+
+  await assert.rejects(
+    () => shareLocation(client, locationInput),
+    (error: unknown) => error instanceof DataError && error.code === '42501',
+  );
+});
+
+test('F3 an SOS is confirmed from what was written, never from a read-back', async () => {
+  const { client, log } = makeClient({ sos_events: (calls) => insertRefusedOnReadBack(calls) });
+
+  const submission = await submitSos(
+    client,
+    { familyId: 'fam-1', childUserId: 'child-1', note: 'help' },
+    async () => ({ latitude: 12.5, longitude: -7.25, accuracy: 8 }),
+  );
+
+  assert.equal(submission.event.hasCoordinates, true);
+  assert.equal(submission.event.familyId, 'fam-1');
+
+  const calls = log[0]?.calls ?? [];
+  assert.equal(recorded(calls, 'select'), undefined);
+  assert.equal(recorded(calls, 'single'), undefined);
+});
+
+/* ------------------------------------------------------------------- F4 */
+
+test('F4 acknowledging an SOS writes only the acknowledgement columns', async () => {
+  const { client, log } = makeClient({
+    sos_events: () => ({
+      data: {
+        id: 'sos-1',
+        family_id: 'fam-1',
+        child_user_id: 'child-1',
+        latitude: 1,
+        longitude: 2,
+        note: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        acknowledged_at: '2026-01-01T00:05:00.000Z',
+        acknowledged_by: 'parent-1',
+      },
+      error: null,
+    }),
+  });
+
+  const acknowledged = await acknowledgeSos(client, 'sos-1', 'parent-1');
+
+  const payload = recorded(log[0]?.calls ?? [], 'update') as Record<string, unknown>;
+  // The column grant allows UPDATE (acknowledged_at, acknowledged_by) only: the child's
+  // identity, coordinates and note must not be writable by the acknowledging parent.
+  assert.deepEqual(Object.keys(payload).sort(), ['acknowledged_at', 'acknowledged_by']);
+  assert.equal(payload.acknowledged_by, 'parent-1');
+  assert.equal(acknowledged.id, 'sos-1');
+});
+
+test('F4 a second acknowledgement attempt surfaces the database refusal', async () => {
+  const { client } = makeClient({
+    sos_events: () => ({
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    }),
+  });
+
+  // The policy's USING clause only matches rows with acknowledged_at IS NULL, so an already
+  // acknowledged alert matches nothing and must not be reported as acknowledged.
+  await assert.rejects(() => acknowledgeSos(client, 'sos-1', 'parent-2'));
+});
+
+/* ------------------------------------------------------------------- F5 */
+
+test('F5 an empty invite list is unverified rather than "no invites yet"', async () => {
+  const { client } = makeClient({ family_invites: () => ({ data: [], error: null }) });
+
+  const invites = await loadInvites(client, 'fam-1');
+
+  assert.deepEqual(invites.rows, []);
+  // RLS filters silently, so an empty list proves nothing about why it is empty.
+  assert.equal(invites.visibility, 'unverified');
+});
+
+test('F5 readable invite history is reported as readable', async () => {
+  const row = {
+    id: 'inv-1',
+    family_id: 'fam-1',
+    created_by: 'parent-1',
+    expires_at: '2026-02-01T00:00:00.000Z',
+    consumed_by: null,
+    consumed_at: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+  };
+
+  const { client, log } = makeClient({ family_invites: () => ({ data: [row], error: null }) });
+
+  const invites = await loadInvites(client, 'fam-1');
+
+  assert.equal(invites.visibility, 'readable');
+  assert.equal(invites.rows[0]?.id, 'inv-1');
+
+  // The invite token is returned once by create_family_invite and only its hash is stored;
+  // no screen may request that hash.
+  const columns = String(recorded(log[0]?.calls ?? [], 'select') ?? '');
+  assert.ok(!columns.includes('token_hash'), 'token_hash must never be selected');
+});
+
+test('F5 a refused invite read is reported instead of shown as an empty history', async () => {
+  const { client } = makeClient({
+    family_invites: () => ({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table family_invites' },
+    }),
+  });
+
+  await assert.rejects(
+    () => loadInvites(client, 'fam-1'),
+    (error: unknown) => error instanceof DataError && error.code === '42501',
+  );
+});
+
+/* ------------------------------------------------------------------- F7 */
+
+test('F7 the family subscription read never selects payment identifiers', async () => {
+  const { client, log } = makeClient({ subscriptions: () => ({ data: null, error: null }) });
+
+  await loadSubscription(client, 'fam-1');
+
+  const columns = String(recorded(log[0]?.calls ?? [], 'select') ?? '');
+  // Every family member may read the subscription row, so the payment columns stay out of
+  // the projection: they are granted to the paying parent only.
+  assert.ok(!columns.includes('payment_network'), 'payment_network must not be selected');
+  assert.ok(!columns.includes('transaction_id'), 'transaction_id must not be selected');
+  assert.ok(columns.includes('status') && columns.includes('plan_code'));
+});
