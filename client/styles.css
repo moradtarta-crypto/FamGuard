@@ -1093,3 +1093,14 @@ button:focus-visible {
 .onboarding-options.prefer-parent .parent-option {
   order: -1;
 }
+
+
+.auth-secondary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-secondary-actions .ghost {
+  width: 100%;
+}
