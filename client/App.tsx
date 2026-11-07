@@ -113,7 +113,8 @@ function SignedIn() {
 }
 
 function Screen() {
-  const { phase } = useAuth();
+  const { phase, recoveryMode } = useAuth();
+  if (recoveryMode) return <AuthScreen recoveryMode />;
   if (phase === 'loading') return <LoadingScreen />;
   if (phase === 'config-error') return <ConfigErrorScreen />;
   if (phase === 'signed-out') return <AuthScreen />;
