@@ -4,7 +4,22 @@ export interface BrowserLocation {
   accuracy: number | null;
 }
 
-export function currentPosition(): Promise<BrowserLocation> {
+export interface PositionOptions {
+  timeout?: number;
+  maximumAge?: number;
+  enableHighAccuracy?: boolean;
+}
+
+const DEFAULT_POSITION_TIMEOUT_MS = 15000;
+const DEFAULT_POSITION_MAX_AGE_MS = 30000;
+
+export function currentPosition(options: PositionOptions = {}): Promise<BrowserLocation> {
+  const {
+    timeout = DEFAULT_POSITION_TIMEOUT_MS,
+    maximumAge = DEFAULT_POSITION_MAX_AGE_MS,
+    enableHighAccuracy = true,
+  } = options;
+
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       reject(new Error('This browser does not expose the Geolocation API.'));
@@ -20,9 +35,45 @@ export function currentPosition(): Promise<BrowserLocation> {
         });
       },
       (error) => reject(new Error(describePositionError(error))),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+      { enableHighAccuracy, timeout, maximumAge },
     );
   });
+}
+
+/**
+ * Resolves with `work`, or rejects once `budgetMs` elapses. Keeps safety-critical
+ * paths (the SOS button) from waiting on a sensor that may never answer.
+ */
+export function withDeadline<T>(work: Promise<T>, budgetMs: number, message?: string): Promise<T> {
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0) return work;
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(message ?? `Operation exceeded ${budgetMs} ms.`)),
+      budgetMs,
+    );
+  });
+
+  return Promise.race([work, deadline]).finally(() => {
+    if (timer !== null) clearTimeout(timer);
+  });
+}
+
+/** How long an SOS waits for coordinates before it is submitted without them. */
+export const SOS_POSITION_BUDGET_MS = 3000;
+
+/**
+ * Position lookup for the SOS path: bounded to roughly three seconds and never
+ * served from cache, so an emergency alert carries current coordinates or none.
+ * A rejection here is expected and handled by the caller, which still sends the alert.
+ */
+export function currentPositionForSos(): Promise<BrowserLocation> {
+  return withDeadline(
+    currentPosition({ timeout: SOS_POSITION_BUDGET_MS, maximumAge: 0 }),
+    SOS_POSITION_BUDGET_MS + 250,
+    'Location lookup took longer than 3 seconds.',
+  );
 }
 
 function describePositionError(error: GeolocationPositionError): string {

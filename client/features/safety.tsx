@@ -14,7 +14,7 @@ import {
   setZoneEnabled,
   shareLocation,
 } from '../lib/data';
-import { batteryPercent, currentPosition } from '../lib/geolocation';
+import { batteryPercent, currentPosition, currentPositionForSos } from '../lib/geolocation';
 import {
   distanceMeters,
   formatBattery,
@@ -250,7 +250,8 @@ export function SosPanel({
       let latitude: number | null = null;
       let longitude: number | null = null;
       try {
-        const position = await currentPosition();
+        // Bounded to ~3 seconds and never cached: an alert must not wait on GPS.
+        const position = await currentPositionForSos();
         latitude = position.latitude;
         longitude = position.longitude;
       } catch {
