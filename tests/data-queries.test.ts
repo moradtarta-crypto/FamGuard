@@ -306,7 +306,7 @@ test('child location history is marked restricted without querying parent-only r
 
   assert.deepEqual(latest.rows, []);
   assert.equal(latest.membership, 'restricted');
-  assert.equal(log.length, 1, 'only the family membership read should run');
+  assert.equal(log.length, 0, 'a child must not query parent-only location history or the roster');
 });
 
 /* ------------------------------------------------------------------- H-4 */
