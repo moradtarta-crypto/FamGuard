@@ -19,8 +19,12 @@ type Calls = Array<[string, unknown]>;
  * lets each test decide what the database would return, so the *shape* of the query
  * the app sends can be asserted without touching a real database.
  */
-function makeClient(handlers: Record<string, (calls: Calls, op: string) => Terminal>) {
+function makeClient(
+  handlers: Record<string, (calls: Calls, op: string) => Terminal>,
+  rpcHandlers: Record<string, (params: Record<string, unknown>) => Terminal> = {},
+) {
   const log: Array<{ table: string; op: string; calls: Calls }> = [];
+  const rpcLog: Array<{ name: string; params: Record<string, unknown> }> = [];
 
   const client = {
     from(table: string) {
@@ -33,7 +37,10 @@ function makeClient(handlers: Record<string, (calls: Calls, op: string) => Termi
 
       const builder: Record<string, unknown> = {};
 
-      builder.select = () => builder;
+      builder.select = (columns?: string) => {
+        calls.push(['select', columns ?? null]);
+        return builder;
+      };
       builder.insert = (values: unknown) => {
         entry.op = 'insert';
         calls.push(['insert', values]);
@@ -48,6 +55,14 @@ function makeClient(handlers: Record<string, (calls: Calls, op: string) => Termi
         calls.push(['eq', [column, value]]);
         return builder;
       };
+      builder.neq = (column: string, value: unknown) => {
+        calls.push(['neq', [column, value]]);
+        return builder;
+      };
+      builder.is = (column: string, value: unknown) => {
+        calls.push(['is', [column, value]]);
+        return builder;
+      };
       builder.order = (column: string, options: unknown) => {
         calls.push(['order', [column, options]]);
         return builder;
@@ -56,8 +71,14 @@ function makeClient(handlers: Record<string, (calls: Calls, op: string) => Termi
         calls.push(['limit', count]);
         return builder;
       };
-      builder.maybeSingle = async () => respond();
-      builder.single = async () => respond();
+      builder.maybeSingle = async () => {
+        calls.push(['maybeSingle', true]);
+        return respond();
+      };
+      builder.single = async () => {
+        calls.push(['single', true]);
+        return respond();
+      };
       builder.then = (
         resolve: (value: Terminal) => unknown,
         reject?: (reason: unknown) => unknown,
@@ -65,9 +86,26 @@ function makeClient(handlers: Record<string, (calls: Calls, op: string) => Termi
 
       return builder;
     },
+
+    /**
+     * An unregistered RPC answers the way PostgREST does before the security migration is
+     * applied, so a test never has to opt in to the "not migrated yet" behaviour.
+     */
+    rpc(name: string, params: Record<string, unknown> = {}) {
+      rpcLog.push({ name, params });
+      const handler = rpcHandlers[name];
+      if (handler) return Promise.resolve(handler(params));
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: 'PGRST202',
+          message: `Could not find the function public.${name} in the schema cache`,
+        },
+      });
+    },
   };
 
-  return { client: client as never, log };
+  return { client: client as never, log, rpcLog };
 }
 
 function recorded(calls: Calls, name: string): unknown {
