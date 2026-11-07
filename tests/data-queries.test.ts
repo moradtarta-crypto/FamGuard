@@ -285,21 +285,24 @@ test('H-3 a refused location read is reported instead of silently dropped', asyn
 test('H-4 concurrent conversation creation converges on one canonical conversation', async () => {
   const created: Array<{ id: string; family_id: string; created_at: string }> = [];
 
-  const { client } = makeClient({
-    conversations: (calls, op) => {
-      if (op === 'insert') {
-        const index = created.length;
-        created.push({
-          id: `conv-${index + 1}`,
-          family_id: 'fam-1',
-          created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
-        });
-        return { data: null, error: null };
-      }
-      const oldest = [...created].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
-      return { data: oldest ?? null, error: null };
+  const { client, log, rpcLog } = makeClient(
+    {
+      conversations: () => {
+        const oldest = [...created].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+        return { data: oldest ?? null, error: null };
+      },
     },
-  });
+    {
+      // The function locks the family row and creates at most one conversation, so both
+      // callers receive the same id even though both passed the "no conversation" check.
+      ensure_family_conversation: () => {
+        if (created.length === 0) {
+          created.push({ id: 'conv-1', family_id: 'fam-1', created_at: '2026-01-01T00:00:00.000Z' });
+        }
+        return { data: 'conv-1', error: null };
+      },
+    },
+  );
 
   const [first, second] = await Promise.all([
     createConversation(client, 'fam-1'),
@@ -309,6 +312,63 @@ test('H-4 concurrent conversation creation converges on one canonical conversati
   assert.equal(first.id, 'conv-1');
   assert.equal(second.id, 'conv-1');
   assert.equal(first.id, second.id);
+
+  // The family id is the only thing the client supplies: the row identity and the
+  // duplicate check stay inside the database.
+  assert.deepEqual(
+    rpcLog.map((entry) => entry.name),
+    ['ensure_family_conversation', 'ensure_family_conversation'],
+  );
+  assert.deepEqual(rpcLog[0]?.params, { target_family: 'fam-1' });
+
+  // F1: no direct INSERT is attempted once the function is available, because
+  // `conversations` has no INSERT policy.
+  assert.equal(
+    log.filter((entry) => entry.table === 'conversations' && entry.op === 'insert').length,
+    0,
+  );
+});
+
+/* ------------------------------------------------------------------- F1 */
+
+test('F1 an unmigrated database explains the missing conversation function', async () => {
+  const { client } = makeClient({
+    conversations: (calls, op) =>
+      op === 'insert'
+        ? {
+            data: null,
+            error: {
+              code: '42501',
+              message: 'new row violates row-level security policy for table "conversations"',
+            },
+          }
+        : { data: null, error: null },
+  });
+
+  await assert.rejects(
+    () => createConversation(client, 'fam-1'),
+    (error: unknown) =>
+      error instanceof DataError &&
+      /security migration/i.test(error.message) &&
+      /20261107_0001_security_repair\.sql/.test(error.message),
+  );
+});
+
+test('F1 a non-missing RPC failure is reported as itself, not as a migration hint', async () => {
+  const { client } = makeClient(
+    { conversations: () => ({ data: null, error: null }) },
+    {
+      ensure_family_conversation: () => ({
+        data: null,
+        error: { code: '42501', message: 'permission denied for function ensure_family_conversation' },
+      }),
+    },
+  );
+
+  await assert.rejects(
+    () => createConversation(client, 'fam-1'),
+    (error: unknown) => error instanceof DataError && error.code === '42501',
+  );
 });
 
 /* ------------------------------------------------------------------- H-2 */
