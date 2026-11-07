@@ -166,8 +166,8 @@ export function Onboarding({
           <span>{account.profile ? 'Present' : 'Not created yet'}</span>
         </div>
         <Note>
-          A profile row is not created automatically — your database has no trigger for it. You can
-          create or update your own row after joining a family.
+          FamGuard creates your profile automatically when the account is registered. If this says
+          “Not created yet”, retry loading your account or contact support rather than creating a duplicate.
         </Note>
       </SectionCard>
     </div>
