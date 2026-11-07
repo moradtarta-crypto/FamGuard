@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   DataError,
+  acknowledgeSos,
   createConversation,
   loadConversation,
+  loadInvites,
   loadLatestLocations,
   loadMessages,
+  loadSubscription,
+  markConversationRead,
+  shareLocation,
 } from '../client/lib/data.js';
 import { SOS_POSITION_BUDGET_MS, withDeadline } from '../client/lib/geolocation.js';
 import { loadShared, resetSharedCache } from '../client/lib/resourceCache.js';
