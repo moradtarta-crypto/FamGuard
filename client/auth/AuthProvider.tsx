@@ -180,7 +180,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePassword = useCallback(async (password: string): Promise<string | null> => {
     if (!client) return 'FamGuard is still starting up. Please try again in a moment.';
     const { error } = await client.auth.updateUser({ password });
-    return error ? error.message : null;
+    if (error) return error.message;
+    setRecoveryMode(false);
+    return null;
   }, [client]);
 
   const signUp = useCallback(
