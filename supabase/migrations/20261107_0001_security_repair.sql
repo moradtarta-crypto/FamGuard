@@ -1,24 +1,26 @@
 -- FamGuard — security and functionality repair (part 1 of 2).
 --
 -- WHAT THIS DOES
---   Adds policies, column privileges and two SECURITY DEFINER helpers. It does not
---   drop, rename or truncate anything and it performs no DML, so no existing record is
---   read or modified by the migration itself.
+--   Adds two SECURITY DEFINER helpers, narrows write/read privileges, and replaces
+--   the co-member profile policy with a non-recursive membership check. It performs
+--   no DML and does not alter any stored application records.
 --
 -- WHAT THIS DOES NOT DO
 --   * It does not touch the existing UPDATE policies on messages / sos_events. Those keep
 --     their current USING and WITH CHECK clauses; the column privileges added below are what
 --     stop a recipient from rewriting a message body or an incident's coordinates.
---   * It does not weaken any policy. Every statement either adds a policy that grants a
---     read the application needs, or narrows a privilege.
+--   * It does not add child SOS history access or broaden subscription visibility.
+--   * Existing family-invite, zone and parent-owned subscription policies are preserved.
+--   * The existing co-member profile policy is replaced; its previous definition must
+--     be captured before applying so it can be restored manually if rollback is needed.
 --
 -- PREREQUISITES
 --   1. supabase/audit/capture_current_definitions.sql has been run and its output saved.
 --   2. The three helper functions exist: is_family_member(uuid), is_parent_in_family(uuid),
 --      is_child_in_family(uuid, uuid). Verify with the capture script before applying.
 --   3. create_family_invite / accept_family_invite are SECURITY DEFINER (section 3 of the
---      capture output). The column grants on family_invites in step 6 assume the definer
---      reads and writes that table; an INVOKER function would lose access.
+--      capture output). The existing parent-only invite policy and the safe column grants
+--      are preserved; verify both before applying.
 --
 -- ROLLBACK
 --   supabase/rollback/20261107_0001_security_repair_rollback.sql
@@ -148,8 +150,8 @@ grant update (acknowledged_at, acknowledged_by) on table public.sos_events to au
 -- ---------------------------------------------------------------------------
 -- 6. family_invites: parents may read the invitation history, nobody may read token_hash
 --
---    Without a policy the table is deny-all, so the invite list rendered "No invites yet"
---    while invites existed. The hash is still never exposed to the API.
+--    The audited parent-only SELECT policy already exists. Reassert only the safe
+--    column grants; the stored token_hash remains unreadable to authenticated clients.
 -- ---------------------------------------------------------------------------
 -- The parent-only SELECT policy already exists in the audited database; preserve it.
 revoke select on table public.family_invites from public;
@@ -173,9 +175,9 @@ grant select (id, family_id, created_by, expires_at, consumed_by, consumed_at, c
 -- ---------------------------------------------------------------------------
 -- 9. profiles: family members may read each other's profile
 --
---    Previously only the owner and parents-of-children could read a profile, so co-parents
---    and children rendered "Member xxxxxxxx" instead of a name. Visibility stays inside the
---    family: famguard_shares_family_with(user_id) is false for every unrelated account.
+--    The previous membership policy could recurse through family_members RLS. Replace
+--    only this named policy with a SECURITY DEFINER-backed same-family check. The saved
+--    audit output is required to restore its exact prior expression.
 -- ---------------------------------------------------------------------------
 drop policy if exists "family members read each other profiles" on public.profiles;
 create policy "family members read each other profiles"
