@@ -1,8 +1,9 @@
 # FamGuard database migrations
 
 These files repair the Row Level Security gaps found in the audit of commit `fea4b185`.
-They are **additive and reversible**: no table, row, column, index, enum or existing policy
-is dropped, renamed or rewritten, and no statement in them performs DML.
+They perform no DML and do not alter stored records. The first migration replaces one
+profile policy and narrows grants; its rollback requires the saved policy definition. The
+helper-function rollback also requires the saved original function attributes.
 
 Nothing here has been applied yet. The application only holds the Supabase publishable
 (anon) key, which cannot run DDL, and no database password or service key exists in this
@@ -36,8 +37,8 @@ Run each migration in the Supabase SQL editor as a single transaction. Each file
 4. `sos_events` — `REVOKE UPDATE` on the table, then `GRANT UPDATE (acknowledged_at,
    acknowledged_by)`. A parent can acknowledge once and cannot alter the child's identity,
    coordinates or note.
-5. `family_invites` — parent-only `SELECT` policy plus `REVOKE SELECT` / `GRANT SELECT
-   (safe columns)`, so `token_hash` is never readable.
+5. `family_invites` — preserves the already-audited parent-only `SELECT` policy and
+   reasserts `REVOKE SELECT` / `GRANT SELECT (safe columns)`, so `token_hash` stays unreadable.
 6. `zones` — the already-audited family-member read and parent-only write policies are
    preserved; this migration does not replace them.
 7. `sos_events` — history remains parent-only. A child SELECT policy was explicitly declined,
@@ -86,13 +87,12 @@ the invite list shows history, and the parent subscription panel renders.
 
 ## Rollback
 
-`rollback/20261107_0001_security_repair_rollback.sql` and
-`rollback/20261107_0002_helper_hardening_rollback.sql` undo the corresponding step: they
-drop the migration-created functions and restore only the audited column-level grants; they
-never restore broad table-wide SELECT/UPDATE. The profile policy was replaced, so restore its
-exact prior CREATE POLICY statement from the saved audit output before allowing users back
-into the app. The helper-function rollback also requires restoring the exact captured
-attributes; do not assume the original functions were INVOKER or had an empty search_path.
+`rollback/20261107_0001_security_repair_rollback.sql` restores only audited column-level grants;
+it never restores broad table-wide SELECT/UPDATE. It drops the replacement profile policy,
+so restore the exact prior CREATE POLICY statement from the saved audit output before users
+return. `rollback/20261107_0002_helper_hardening_rollback.sql` is intentionally a manual note
+file: restore exact captured SECURITY mode, volatility and search_path values. Neither rollback
+may be guessed or run blindly.
 
 ## Application behaviour before the migrations are applied
 
