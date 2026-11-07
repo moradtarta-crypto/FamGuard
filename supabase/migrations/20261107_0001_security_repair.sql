@@ -221,6 +221,12 @@ grant update (read_at) on table public.messages to authenticated;
 -- ---------------------------------------------------------------------------
 revoke update on table public.sos_events from public;
 revoke update on table public.sos_events from anon, authenticated;
+revoke update (id, family_id, child_user_id, latitude, longitude, note, created_at,
+               acknowledged_at, acknowledged_by)
+  on table public.sos_events from public;
+revoke update (id, family_id, child_user_id, latitude, longitude, note, created_at,
+               acknowledged_at, acknowledged_by)
+  on table public.sos_events from anon, authenticated;
 grant update (acknowledged_at, acknowledged_by) on table public.sos_events to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -237,6 +243,10 @@ grant update (acknowledged_at, acknowledged_by) on table public.sos_events to au
 -- The parent-only SELECT policy already exists in the audited database; preserve it.
 revoke select on table public.family_invites from public;
 revoke select on table public.family_invites from anon, authenticated;
+revoke select (id, family_id, created_by, token_hash, expires_at, consumed_by, consumed_at, created_at)
+  on table public.family_invites from public;
+revoke select (id, family_id, created_by, token_hash, expires_at, consumed_by, consumed_at, created_at)
+  on table public.family_invites from anon, authenticated;
 grant select (id, family_id, created_by, expires_at, consumed_by, consumed_at, created_at)
   on table public.family_invites to authenticated;
 
@@ -276,6 +286,12 @@ create policy "family members read each other profiles"
 -- ---------------------------------------------------------------------------
 revoke select on table public.subscriptions from public;
 revoke select on table public.subscriptions from anon, authenticated;
+revoke select (id, parent_user_id, family_id, status, plan_code, starts_at, ends_at,
+               payment_network, transaction_id, verified_at, created_at)
+  on table public.subscriptions from public;
+revoke select (id, parent_user_id, family_id, status, plan_code, starts_at, ends_at,
+               payment_network, transaction_id, verified_at, created_at)
+  on table public.subscriptions from anon, authenticated;
 grant select (id, parent_user_id, family_id, status, plan_code, starts_at, ends_at, verified_at, created_at)
   on table public.subscriptions to authenticated;
 
