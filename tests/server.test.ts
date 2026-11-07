@@ -112,6 +112,16 @@ test('keyRejectionReason accepts publishable keys', () => {
   assert.notEqual(keyRejectionReason('   '), null);
 });
 
+test('config endpoint rejects a non-anon legacy JWT key', async () => {
+  const response = await request(
+    createApp({ SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: jwt({ role: 'authenticated' }) }),
+  )
+    .get('/api/config')
+    .expect(503);
+
+  assert.match(response.body.problems.join(' '), /must have the anon role/i);
+});
+
 test('readSupabaseConfig trims surrounding whitespace', () => {
   const { config, problems } = readSupabaseConfig({
     SUPABASE_URL: ` ${SUPABASE_URL} `,
