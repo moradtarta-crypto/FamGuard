@@ -96,7 +96,7 @@ the invite list shows history, and the parent subscription panel renders.
 `rollback/20261107_0001_security_repair_rollback.sql` restores only audited column-level grants;
 it never restores broad table-wide SELECT/UPDATE. It drops the replacement profile policy,
 so restore the exact prior CREATE POLICY statement from the saved audit output before users
-return. `rollback/20261107_0002_helper_hardening_rollback.sql` is intentionally a manual note
+return. `rollback/20261107_0003_helper_hardening_rollback.sql` is intentionally a manual note
 file for 0003: restore exact captured SECURITY mode, volatility and search_path values.
 Neither rollback may be guessed or run blindly.
 
