@@ -1,4 +1,4 @@
--- FamGuard — security and functionality repair (part 1 of 2).
+-- FamGuard — security and functionality repair migration.
 --
 -- WHAT THIS DOES
 --   Adds two SECURITY DEFINER helpers, narrows write/read privileges, and replaces
