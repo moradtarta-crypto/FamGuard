@@ -129,7 +129,7 @@ export function ShareLocationCard({
 
       {mine ? (
         <>
-          <DataRow label="Last shared" value={formatRelative(mine.recorded_at)} />
+          <DataRow label="Last shared" value={formatRelative(mine.received_at ?? mine.recorded_at)} />
           <DataRow
             label="Coordinates"
             value={formatCoordinates(mine.latitude, mine.longitude)}
@@ -230,7 +230,7 @@ export function MemberLocationsPanel({
                   </span>
                   <strong>{name}</strong>
                   <div className="muted small">
-                    {formatCoordinates(row.latitude, row.longitude)} · {formatRelative(row.recorded_at)}
+                    {formatCoordinates(row.latitude, row.longitude)} · {formatRelative(row.received_at ?? row.recorded_at)}
                   </div>
                 </div>
                 <Pill tone="neutral">
@@ -599,7 +599,7 @@ export function ZonesPanel({
             const childDistances = role === 'parent'
               ? (latest.data?.rows ?? []).map((row) => ({
                   name: memberNames.get(row.child_user_id) ?? `Member ${row.child_user_id.slice(0, 8)}`,
-                  recordedAt: row.recorded_at,
+                  recordedAt: row.received_at ?? row.recorded_at,
                   distance: distanceMeters(
                     { latitude: row.latitude, longitude: row.longitude },
                     { latitude: zone.center_lat, longitude: zone.center_lng },
