@@ -1,97 +1,97 @@
 # FamGuard
 
-Family safety and protection app. React + Vite client, Express 5 server, and a
-**live Supabase backend** (auth, database and row level security) — there is no
-local JSON store and no seeded demo data.
+Family safety and protection app built with React, Vite, Express 5 and the existing Supabase project. The app uses the live Supabase Auth and database APIs; it has no local JSON store, seeded demo records or simulated alerts.
 
-## Status: stage 1 of 3
+## Project status
 
 | Stage | Scope | State |
 | --- | --- | --- |
-| 1 | Supabase configuration, email/password auth, session handling, role resolution, demo data removal | **implemented** |
-| 2 | Parent/child dashboards, family creation, invite/join, member list, chat, SOS, location, zones | pending schema verification |
-| 3 | Full verification and deployment | pending approval |
+| 1 | Runtime Supabase configuration, email/password authentication, persistent sessions and account loading | Implemented |
+| 2 | Parent/child dashboards, family creation and invite/join, members, family chat, SOS, location sharing and zones | Implemented in the `appjet` branch; live database dependencies are listed below |
+| 3 | End-to-end verification, final security review and deployment | Not started; requires explicit approval |
 
-Stage 1 deliberately ships no family, chat, SOS, location or zone queries: those
-land in stage 2 once the existing table columns, relationships, enum values and
-RPC signatures are confirmed.
+The code in this branch is ahead of `main`. Work on `appjet` is not a production deployment.
 
 ## Configuration
 
-The app needs exactly two environment variables. Both are browser-safe.
+The app needs two environment variables:
 
-| Variable | Example | Notes |
-| --- | --- | --- |
-| `SUPABASE_URL` | `https://gglslcqrkurpxwkvjvek.supabase.co` | Your existing project. |
-| `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` | Publishable (anon) key. **Required.** |
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | URL of the existing Supabase project |
+| `SUPABASE_PUBLISHABLE_KEY` | Browser-safe publishable key |
 
-`PORT` (default `3000`) is optional.
+`PORT` is optional (default `3000`). Never configure a `service_role` or `sb_secret_` key. The server rejects those key types before exposing configuration to the browser.
 
-**Never set a `service_role` or secret key.** `server/app.ts` refuses to serve a
-configuration whose key is an `sb_secret_` key or a JWT with `role: service_role`,
-and the UI shows a configuration error instead of starting. Access control is
-your existing Supabase row level security, evaluated against each signed-in
-user's own JWT.
+Locally, copy `.env.example` to `.env` and provide the two public settings.
 
-Locally, copy `.env.example` to `.env` and fill in the values.
+## Runtime configuration
 
-## How configuration reaches the browser
-
-`GET /api/config` returns `{ supabaseUrl, supabasePublishableKey }` at runtime
-(`Cache-Control: no-store`). The client never uses `VITE_*` inlining, so rotating
-the publishable key does not require a rebuild. Nothing else is exposed by the
-server: `/api/health` and `/api/config` are the only API routes.
+`GET /api/config` returns `supabaseUrl` and `supabasePublishableKey` at runtime with `Cache-Control: no-store`. The browser does not inline credentials through `VITE_*` variables. The only API routes are `/api/health` and `/api/config`.
 
 ## Architecture
 
 ```
 server/
-  app.ts        Express app: /api/health, /api/config, key safety guard
-  index.ts      Static hosting for dist/public + API + SPA fallback
+  app.ts             Express health and browser-safe config endpoints
+  index.ts           Production static hosting and SPA fallback
 client/
-  lib/supabase.ts   runtime config fetch, createClient (session persistence + auto refresh)
-  lib/roles.ts      role normalization, tolerant column lookups
-  lib/account.ts    own profile + family_members read, role resolution
-  auth/AuthProvider.tsx  session bootstrap, auth state subscription, account loading
-  auth/AuthScreen.tsx    email/password sign-in and sign-up
-  App.tsx           loading / config-error / signed-out / signed-in phases
+  auth/              Auth provider and email/password screen
+  features/          Family, chat and safety panels
+  hooks/             Resource loading and refresh behavior
+  lib/
+    account.ts       Signed-in user's profile and family memberships
+    data.ts          Supabase reads, writes and existing RPC calls
+    schema.ts        Verified database row shapes and selected columns
+    supabase.ts      Runtime config fetch and Supabase client
+    sos.ts           Bounded best-effort location lookup for SOS
+  pages/             Dashboard and family onboarding
 ```
 
-### Role resolution
+## Account and role resolution
 
-`client/lib/account.ts` reads only the signed-in user's own rows:
+`client/lib/account.ts` reads:
 
-1. `profiles` filtered by `id = auth.uid()` (optional row — a profile may not exist yet).
-2. `family_members` filtered by the first matching owner column of
-   `user_id`, `profile_id`, `member_id`, `account_id`. The next column is tried
-   **only** when PostgREST reports a missing column (`42703`); any other error —
-   including a row level security denial — is surfaced to the user unchanged.
-3. Role comes from the membership (`role`, `member_role`, `relationship`, `type`),
-   falling back to the profile role, and is normalized to `parent` or `child`.
+1. The signed-in user's profile from `profiles`, filtered by `user_id = auth.uid()`. A profile row is optional.
+2. The signed-in user's memberships from `family_members`, filtered by `user_id = auth.uid()`.
+3. The role for each family exclusively from `family_members.role`. Valid roles are `parent` and `child`; the app does not infer a role from profile metadata.
 
-If a policy blocks a read, the UI reports the error and offers a retry. The app
-never changes database objects.
+A database or row-level security error is shown to the user; it is not treated as an empty successful result.
 
-## UI states
+## Implemented behavior and limits
 
-Loading (skeletons), configuration error (with the exact server problems and a
-retry), signed out (auth form), signed in (account + family panels), account load
-error (message + retry), and empty (`You are not part of a family yet`). No
-placeholder members, alerts or coordinates are ever rendered.
+- Authentication: email/password, session persistence and email confirmation handling.
+- Families: explicit user-triggered calls to the existing `create_family`, `create_family_invite` and `accept_family_invite` RPCs.
+- Family chat: text messages, bounded newest-message loading, polling and read receipts. A family with no conversation requires the `ensure_family_conversation(uuid)` RPC; the app reports the database refusal if that RPC is unavailable and direct insertion is blocked by RLS.
+- SOS: records the alert even if the browser cannot obtain coordinates; the UI warns when the alert was stored without location. Database write failures remain failures.
+- Location: browser geolocation and manual/polling refresh. This is not background tracking.
+- Zones: stored safe/danger zones and browser-side distance display. The database does not automatically evaluate entry/exit or generate geofence alerts.
+- Notifications: no push, SMS or email notification service is configured.
+- Media: image and voice messages are not enabled because no verified storage bucket is configured.
+- Billing: the current subscription panel is read-only. No payment collection, receipt verification or automatic activation is implemented.
+- Realtime: Supabase Realtime is not enabled for this project; screens use polling and manual refresh.
+
+The UI must not show placeholder members, fake coordinates, simulated SOS alerts or fabricated payment states.
+
+## Database and security boundary
+
+The application uses the existing Supabase schema and row-level security. It does not apply migrations or change database objects automatically.
+
+The SQL migration files in `supabase/migrations/` are proposals only; they are **not automatically applied** by this application. In particular, `ensure_family_conversation(uuid)` is a database dependency for creating a conversation when a family does not already have one. Do not apply a migration or rollback script without reviewing its exact statements and obtaining explicit approval.
+
+Never bypass RLS, expose secret keys, create test accounts, or perform database writes outside an explicit user action.
 
 ## Scripts
 
 ```bash
 npm run dev:server   # API + static host on PORT
 npm run dev:client   # Vite dev server (proxies /api)
-npm test             # server tests (node --test)
-npm run typecheck    # server + client
-npm run build        # tsc + vite build
+npm test             # all Node tests
+npm run typecheck    # server + client TypeScript checks
+npm run build        # TypeScript check + Vite production build
 npm start            # production server
 ```
 
-## Database policy
+## Deployment
 
-No migrations, DDL, policy changes, function changes or data writes are part of
-this repository. Any operation that existing RLS blocks is reported, not worked
-around.
+No deployment is performed by repository changes. Stage 3, production deployment and any live database operation require separate explicit approval.
