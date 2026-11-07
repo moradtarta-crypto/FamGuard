@@ -14,7 +14,7 @@ reports the affected features honestly instead of pretending they succeed.
 | Step | File | Purpose |
 | --- | --- | --- |
 | 1 | `audit/capture_current_definitions.sql` | **Read-only backup.** Records the current policies, function definitions, attributes and grants. Save the output. This is what makes rollback exact. |
-| 2 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, member-read policies, subscription/profile visibility. |
+| 2 | `migrations/20261107_0001_security_repair.sql` | Conversation RPC, column-level write privileges, invite/profile visibility; preserves existing parent-only SOS and subscription access. |
 | 3 | `migrations/20261107_0002_helper_function_hardening.sql` | Verifies `is_family_member` / `is_parent_in_family` / `is_child_in_family` bodies, then pins `SECURITY DEFINER` + `search_path` (fixes recursive-RLS risk). |
 
 Run each migration in the Supabase SQL editor as a single transaction. Each file ends with
@@ -38,12 +38,14 @@ Run each migration in the Supabase SQL editor as a single transaction. Each file
    coordinates or note.
 5. `family_invites` — parent-only `SELECT` policy plus `REVOKE SELECT` / `GRANT SELECT
    (safe columns)`, so `token_hash` is never readable.
-6. `zones` — children gain read access through a member policy; the existing parent-only
-   `ALL` policy is untouched, so only parents can write.
-7. `sos_events` — a child may read the alerts it raised itself (acknowledgement feedback).
-8. `profiles` — co-members can read each other's display names within a shared family.
-9. `subscriptions` — every member of the family can read the family subscription row, while
-   `REVOKE`/column grants keep `payment_network` and `transaction_id` with the paying parent.
+6. `zones` — the already-audited family-member read and parent-only write policies are
+   preserved; this migration does not replace them.
+7. `sos_events` — history remains parent-only. A child SELECT policy was explicitly declined,
+   so the migration does not widen SOS visibility.
+8. `profiles` — co-members can read each other's display names within a shared family. The
+   prior policy expression is replaced with a SECURITY DEFINER-backed membership check.
+9. `subscriptions` — the existing parent-owned SELECT policy is preserved. Safe column grants
+   remain limited to status/plan/date metadata; payment identifiers are not exposed.
 
 `20261107_0002`
 
@@ -73,32 +75,32 @@ group by grantee, privilege_type;
 -- 3. The new policies are present.
 select tablename, policyname, cmd from pg_policies
 where schemaname = 'public'
-  and policyname in ('family members read family subscription',
-                     'family members read each other profiles',
-                     'child reads own sos','zones readable by family members',
+  and policyname in ('family members read each other profiles',
                      'parents read family invites')
 order by tablename;
 ```
 
-Then sign in as a parent and as a child and confirm: the family chat opens, sending an SOS
-reports success, a child sees its own SOS acknowledgement, the invite list shows history,
-and the subscription panel renders.
+Then sign in as a parent and as a child and confirm: the family chat opens, a parent sees SOS
+history and can acknowledge an alert, a child can submit SOS without reading family history,
+the invite list shows history, and the parent subscription panel renders.
 
 ## Rollback
 
 `rollback/20261107_0001_security_repair_rollback.sql` and
 `rollback/20261107_0002_helper_hardening_rollback.sql` undo the corresponding step: they
-drop only the policies and functions those migrations created and restore table-level
-`SELECT`/`UPDATE` to the API roles. No existing policy, row or table is affected in either
-direction. If section C of the helper migration was used to replace a body, paste the
-captured definition back first — the rollback only resets attributes.
+drop the migration-created functions and restore only the audited column-level grants; they
+never restore broad table-wide SELECT/UPDATE. The profile policy was replaced, so restore its
+exact prior CREATE POLICY statement from the saved audit output before allowing users back
+into the app. The helper-function rollback also requires restoring the exact captured
+attributes; do not assume the original functions were INVOKER or had an empty search_path.
 
 ## Application behaviour before the migrations are applied
 
 | Feature | Without the migration |
 | --- | --- |
-| Family chat | `ensure_family_conversation` is missing, so the chat screen shows "the database has not had the FamGuard security repair applied" instead of a raw error. |
+| Family chat | `ensure_family_conversation` is missing, so the chat screen explains that the required database function is not installed; it does not attempt a blocked direct INSERT. |
 | Location sharing / SOS | Works — the app no longer asks for the row back, so there is no false `PGRST116` failure. |
 | Invite history | Shows "invite history could not be confirmed" rather than "no invites yet". |
-| Child SOS / zones lists | Show an honest empty state instead of implying nothing exists. |
-| Subscription | Renders for the paying parent only. |
+| Child SOS history | Remains parent-only; the child can submit an alert but cannot read family SOS history. |
+| Child zones | Uses the existing family-member read policy; no migration change is needed. |
+| Subscription | Renders for the parent who owns the subscription; child access remains denied. |
