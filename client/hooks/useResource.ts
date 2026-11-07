@@ -30,12 +30,18 @@ export function useResource<T>(
   intervalMs = 0,
   maxAgeMs = 0,
 ): Resource<T> {
-  const [state, setState] = useState<ResourceState<T>>({
+  const emptyState: ResourceState<T> = {
     data: null,
     error: null,
     loading: true,
     updatedAt: null,
+  };
+  const [state, setState] = useState<{ key: string; value: ResourceState<T> }>({
+    key,
+    value: emptyState,
   });
+  // Hide the previous key's rows synchronously during render, before the effect runs.
+  // This prevents a family switch from briefly showing the previous family's data.
   const [tick, setTick] = useState(0);
   const previousKey = useRef<string | null>(null);
   const loaderRef = useRef(loader);
@@ -48,7 +54,7 @@ export function useResource<T>(
     previousKey.current = key;
 
     if (keyChanged) {
-      setState({ data: null, error: null, loading: true, updatedAt: null });
+      setState({ key, value: emptyState });
     }
 
     // A manual refresh must reach the database; later interval runs may reuse a result.
@@ -61,15 +67,21 @@ export function useResource<T>(
       if (!active) return;
 
       if (result.ok) {
-        setState({ data: result.data, error: null, loading: false, updatedAt: result.updatedAt });
+        setState({
+          key,
+          value: { data: result.data, error: null, loading: false, updatedAt: result.updatedAt },
+        });
         return;
       }
 
       setState((previous) => ({
-        data: previous.data,
-        error: result.error,
-        loading: false,
-        updatedAt: previous.updatedAt,
+        key,
+        value: {
+          data: previous.key === key ? previous.value.data : null,
+          error: result.error,
+          loading: false,
+          updatedAt: previous.key === key ? previous.value.updatedAt : null,
+        },
       }));
     };
 
@@ -88,5 +100,6 @@ export function useResource<T>(
     setTick((value) => value + 1);
   }, []);
 
-  return { ...state, refresh };
+  const visibleState = state.key === key ? state.value : emptyState;
+  return { ...visibleState, refresh };
 }
