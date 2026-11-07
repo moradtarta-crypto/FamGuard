@@ -10,6 +10,8 @@ export interface AccountContext {
   profile: ProfileRow | null;
   displayName: string;
   memberships: FamilyMemberRow[];
+  /** User-selected onboarding preference only; family_members remains the authorization source. */
+  requestedRole: 'parent' | 'child' | null;
 }
 
 export function resolveDisplayName(profile: ProfileRow | null, user: User): string {
@@ -67,5 +69,6 @@ export async function loadAccount(client: SupabaseClient, user: User): Promise<A
     profile,
     displayName: resolveDisplayName(profile, user),
     memberships,
+    requestedRole: user.user_metadata?.requested_role === 'child' ? 'child' : user.user_metadata?.requested_role === 'parent' ? 'parent' : null,
   };
 }
