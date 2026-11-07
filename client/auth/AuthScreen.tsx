@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from './AuthProvider';
 
-type Mode = 'sign-in' | 'sign-up';
+type Mode = 'sign-in' | 'sign-up' | 'reset' | 'update';
 
-export function AuthScreen() {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<Mode>('sign-in');
+export function AuthScreen({ recoveryMode = false }: { recoveryMode?: boolean }) {
+  const { signIn, signUp, resetPassword, updatePassword } = useAuth();
+  const [mode, setMode] = useState<Mode>(recoveryMode ? 'update' : 'sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -28,11 +28,27 @@ export function AuthScreen() {
       if (mode === 'sign-in') {
         const message = await signIn(email, password);
         if (message) setError(message);
-      } else {
+      } else if (mode === 'sign-up') {
         const result = await signUp({ email, password, fullName });
         if (result.error) setError(result.error);
         if (result.info) setInfo(result.info);
         if (!result.error) setPassword('');
+      } else if (mode === 'reset') {
+        const message = await resetPassword(email);
+        if (message) setError(message);
+        else setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
+      } else {
+        if (password.length < 6) {
+          setError('Your new password must contain at least 6 characters.');
+        } else {
+          const message = await updatePassword(password);
+          if (message) setError(message);
+          else {
+            setPassword('');
+            setInfo('Your password has been updated. You can now sign in with your new password.');
+            setMode('sign-in');
+          }
+        }
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Something went wrong. Please try again.');
@@ -54,7 +70,7 @@ export function AuthScreen() {
           </div>
         </div>
 
-        <div className="auth-tabs" role="tablist" aria-label="Account access">
+        {mode !== 'reset' && mode !== 'update' ? <div className="auth-tabs" role="tablist" aria-label="Account access">
           <button
             type="button"
             role="tab"
@@ -73,7 +89,7 @@ export function AuthScreen() {
           >
             Create account
           </button>
-        </div>
+        </div> : null}
 
         {error ? (
           <div className="banner banner-error" role="alert">
@@ -101,7 +117,7 @@ export function AuthScreen() {
             </label>
           ) : null}
 
-          <label className="field">
+          {mode !== 'update' ? <label className="field">
             <span>Email</span>
             <input
               type="email"
@@ -110,10 +126,10 @@ export function AuthScreen() {
               onChange={(event) => setEmail(event.target.value)}
               required
             />
-          </label>
+          </label> : null}
 
-          <label className="field">
-            <span>Password</span>
+          {mode !== 'reset' ? <label className="field">
+            <span>{mode === 'update' ? 'New password' : 'Password'}</span>
             <input
               type="password"
               autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
@@ -122,17 +138,25 @@ export function AuthScreen() {
               minLength={6}
               required
             />
-          </label>
+          </label> : null}
 
           <button type="submit" className="primary auth-submit" disabled={pending}>
-            {pending ? 'Working…' : mode === 'sign-in' ? 'Sign in' : 'Create account'}
+            {pending ? 'Working…' : mode === 'sign-in' ? 'Sign in' : mode === 'sign-up' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Update password'}
           </button>
         </form>
 
+        {mode === 'sign-in' ? <button type="button" className="ghost" onClick={() => switchMode('reset')}>Forgot password?</button> : null}
+        {mode === 'reset' || mode === 'update' ? (
+          <button type="button" className="ghost" onClick={() => switchMode('sign-in')}>Back to sign in</button>
+        ) : null}
         <p className="muted auth-note">
           {mode === 'sign-in'
             ? 'Sign in with the email and password for your FamGuard account.'
-            : 'Your role (parent or child) comes from your family membership in FamGuard.'}
+            : mode === 'sign-up'
+              ? 'Your role (parent or child) comes from your family membership in FamGuard.'
+              : mode === 'reset'
+                ? 'Enter your account email. If it is registered, Supabase will send a secure reset link.'
+                : 'Choose a new password for your FamGuard account.'}
         </p>
       </div>
     </div>
