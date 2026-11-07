@@ -192,8 +192,12 @@ test('H-3 a quiet child stays visible next to a child who shares constantly', as
     },
   });
 
-  const rows = await loadLatestLocations(client, 'fam-1');
+  const latest = await loadLatestLocations(client, 'fam-1');
+  const rows = latest.rows;
 
+  // The member list was readable here, so an empty result would have been trustworthy;
+  // that is exactly what `verified` records.
+  assert.equal(latest.membership, 'verified');
   assert.deepEqual(
     rows.map((row) => row.child_user_id).sort(),
     ['child-noisy', 'child-quiet'],
@@ -285,4 +289,230 @@ test('H-2 withDeadline bounds a hanging lookup and passes a fast one through', a
 
 test('H-2 the SOS position budget stays at roughly three seconds', () => {
   assert.equal(SOS_POSITION_BUDGET_MS, 3000);
+});
+
+/* ----------------------------------------------------------------- H-3-a */
+
+test('H-3-a an empty member list is unverified, never a confirmed "no updates"', async () => {
+  const { client, log } = makeClient({
+    // Row-level policies filter rows instead of raising, so an empty list is a legitimate
+    // result and says nothing on its own about why it is empty.
+    family_members: () => ({ data: [], error: null }),
+  });
+
+  const latest = await loadLatestLocations(client, 'fam-1');
+
+  assert.deepEqual(latest.rows, []);
+  assert.equal(latest.membership, 'unverified');
+  // Nothing may be claimed about sharing without the member list, so no location query runs.
+  assert.equal(log.length, 1);
+});
+
+/* ------------------------------------------------------------------- M-1 */
+
+test('M-1 screens loading the same key share one request', async () => {
+  resetSharedCache();
+  let calls = 0;
+  const loader = async () => {
+    calls += 1;
+    return calls;
+  };
+
+  const [first, second] = await Promise.all([
+    loadShared('locations:fam-1', loader, 5000),
+    loadShared('locations:fam-1', loader, 5000),
+  ]);
+
+  assert.equal(calls, 1, 'concurrent loads must join one in-flight request');
+  assert.equal(first.ok && first.data, 1);
+  assert.equal(second.ok && second.data, 1);
+
+  // A later load inside the window reuses the rows and keeps their original fetch time,
+  // so the UI cannot label them as fresher than they are.
+  const third = await loadShared('locations:fam-1', loader, 5000);
+  assert.equal(calls, 1);
+  assert.equal(third.ok && third.updatedAt, first.ok && first.updatedAt);
+});
+
+test('M-1 a forced load bypasses sharing and a failure is never shared', async () => {
+  resetSharedCache();
+  let calls = 0;
+  const loader = async () => {
+    calls += 1;
+    return calls;
+  };
+
+  await loadShared('locations:fam-1', loader, 60000);
+  // maxAge 0 is what refresh() uses, so a manual retry must always reach the database.
+  await loadShared('locations:fam-1', loader, 0);
+  assert.equal(calls, 2);
+
+  resetSharedCache();
+  let attempts = 0;
+  const failing = async () => {
+    attempts += 1;
+    throw new Error('permission denied for table location_updates');
+  };
+
+  const failure = await loadShared('locations:fam-1', failing, 60000);
+  assert.equal(failure.ok, false);
+  assert.match(failure.ok ? '' : failure.error, /permission denied/);
+
+  // Caching the error would keep replaying it and hide the retry, so it must not be kept.
+  const retry = await loadShared('locations:fam-1', failing, 60000);
+  assert.equal(attempts, 2);
+  assert.equal(retry.ok, false);
+});
+
+/* ------------------------------------------------------------------- M-2 */
+
+test('M-2 loadMessages breaks a created_at tie by id, so the order is stable', async () => {
+  const shared = '2026-01-01T00:00:00.000Z';
+  const tied = [
+    {
+      id: 'm-b',
+      conversation_id: 'conv-1',
+      sender_user_id: 'user-parent',
+      kind: 'text',
+      body: 'b',
+      media_object_path: null,
+      created_at: shared,
+      read_at: null,
+    },
+    {
+      id: 'm-a',
+      conversation_id: 'conv-1',
+      sender_user_id: 'user-parent',
+      kind: 'text',
+      body: 'a',
+      media_object_path: null,
+      created_at: shared,
+      read_at: null,
+    },
+  ];
+
+  const { client, log } = makeClient({ messages: () => ({ data: tied, error: null }) });
+
+  const result = await loadMessages(client, 'conv-1');
+
+  assert.deepEqual(orders(log[0]?.calls ?? []), [
+    ['created_at', { ascending: false }],
+    ['id', { ascending: false }],
+  ]);
+  // The query asks for id DESC, so the reversal used for rendering yields id ASC.
+  assert.deepEqual(
+    result.map((row) => row.id),
+    ['m-a', 'm-b'],
+  );
+});
+
+/* ------------------------------------------------------------------- M-3 */
+
+test('M-3 the canonical conversation is selected deterministically', async () => {
+  const shared = '2026-01-01T00:00:00.000Z';
+  const oldest = { id: 'conv-a', family_id: 'fam-1', created_at: shared };
+
+  const { client, log } = makeClient({ conversations: () => ({ data: oldest, error: null }) });
+
+  const conversation = await loadConversation(client, 'fam-1');
+
+  assert.equal(conversation?.id, 'conv-a');
+  assert.deepEqual(orders(log[0]?.calls ?? []), [
+    ['created_at', { ascending: true }],
+    ['id', { ascending: true }],
+  ]);
+});
+
+/* ------------------------------------------------------------------- L-5 */
+
+test('L-5 a recorded_at tie still yields one stable latest location per member', async () => {
+  const tied = [
+    locationFixture({ id: 'loc-2', child_user_id: 'child', recorded_at: '2026-01-01T00:00:00.000Z' }),
+    locationFixture({ id: 'loc-1', child_user_id: 'child', recorded_at: '2026-01-01T00:00:00.000Z' }),
+  ];
+
+  const { client, log } = makeClient({
+    family_members: () => ({ data: [{ user_id: 'child' }], error: null }),
+    location_updates: () => ({ data: tied[0], error: null }),
+  });
+
+  const latest = await loadLatestLocations(client, 'fam-1');
+
+  // log[0] is the member read; log[1] is the per-member location read.
+  assert.deepEqual(orders(log[1]?.calls ?? []), [
+    ['recorded_at', { ascending: false }],
+    ['id', { ascending: false }],
+  ]);
+  assert.equal(latest.rows[0]?.id, 'loc-2');
+});
+
+/* ------------------------------------------------------------------- M-4 */
+
+test('M-4 an SOS is recorded without coordinates when the position lookup fails', async () => {
+  let inserted: Record<string, unknown> | null = null;
+
+  const { client } = makeClient({
+    sos_events: (calls) => {
+      inserted = (recorded(calls, 'insert') as Record<string, unknown>) ?? null;
+      return { data: { id: 'sos-1' }, error: null };
+    },
+  });
+
+  const submission = await submitSos(
+    client,
+    { familyId: 'fam-1', childUserId: 'child-1', note: 'help' },
+    // What a denied permission or a missing sensor produces.
+    async () => {
+      throw Object.assign(new Error('User denied Geolocation'), { code: 1 });
+    },
+  );
+
+  assert.equal(submission.coordinates, null);
+  assert.equal(submission.event.id, 'sos-1');
+  assert.equal(inserted?.latitude, null);
+  assert.equal(inserted?.longitude, null);
+  assert.equal(inserted?.note, 'help');
+  assert.equal(inserted?.child_user_id, 'child-1');
+  assert.equal(inserted?.family_id, 'fam-1');
+});
+
+test('M-4 an SOS keeps the coordinates when the position lookup succeeds', async () => {
+  let inserted: Record<string, unknown> | null = null;
+
+  const { client } = makeClient({
+    sos_events: (calls) => {
+      inserted = (recorded(calls, 'insert') as Record<string, unknown>) ?? null;
+      return { data: { id: 'sos-2' }, error: null };
+    },
+  });
+
+  const submission = await submitSos(
+    client,
+    { familyId: 'fam-1', childUserId: 'child-1', note: null },
+    async () => ({ latitude: 12.5, longitude: -7.25, accuracy: 8 }),
+  );
+
+  assert.equal(submission.coordinates?.latitude, 12.5);
+  assert.equal(inserted?.latitude, 12.5);
+  assert.equal(inserted?.longitude, -7.25);
+  assert.equal(inserted?.note, null);
+});
+
+test('M-4 a database failure is still reported instead of being swallowed', async () => {
+  const { client } = makeClient({
+    sos_events: () => ({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table sos_events' },
+    }),
+  });
+
+  await assert.rejects(
+    () =>
+      submitSos(client, { familyId: 'fam-1', childUserId: 'child-1', note: null }, async () => ({
+        latitude: 1,
+        longitude: 2,
+        accuracy: 3,
+      })),
+    (error: unknown) => error instanceof DataError && error.code === '42501',
+  );
 });
