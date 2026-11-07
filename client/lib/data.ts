@@ -303,26 +303,43 @@ export interface NewLocationInput {
   batteryPercent: number | null;
 }
 
+export interface SharedLocation {
+  familyId: string;
+  childUserId: string;
+  recordedAt: string;
+}
+
+/**
+ * Stores one location row for the signed-in child.
+ *
+ * The insert deliberately does not ask for the stored row back. `location_updates` only
+ * lets parents SELECT, so `INSERT … RETURNING` is filtered to zero rows and PostgREST
+ * answers `PGRST116` for a write that actually succeeded — the screen then reported a
+ * failure for a location the family could already see. A bare insert reports exactly what
+ * the child needs to know: whether the row was accepted.
+ */
 export async function shareLocation(
   client: SupabaseClient,
   input: NewLocationInput,
-): Promise<LocationRow> {
-  const { data, error } = await client
-    .from('location_updates')
-    .insert({
-      family_id: input.familyId,
-      child_user_id: input.childUserId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracy_m: input.accuracyM,
-      battery_percent: input.batteryPercent,
-      recorded_at: new Date().toISOString(),
-    })
-    .select(COLUMNS.location)
-    .single();
+): Promise<SharedLocation> {
+  const recordedAt = new Date().toISOString();
+
+  const { error } = await client.from('location_updates').insert({
+    family_id: input.familyId,
+    child_user_id: input.childUserId,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    accuracy_m: input.accuracyM,
+    battery_percent: input.batteryPercent,
+    recorded_at: recordedAt,
+  });
 
   if (error) fail(error, 'share your location');
-  return data as LocationRow;
+  return {
+    familyId: input.familyId,
+    childUserId: input.childUserId,
+    recordedAt,
+  };
 }
 
 /* --------------------------------------------------------------------- chat */
@@ -458,21 +475,42 @@ export interface NewSosInput {
   note: string | null;
 }
 
-export async function raiseSos(client: SupabaseClient, input: NewSosInput): Promise<SosEventRow> {
-  const { data, error } = await client
-    .from('sos_events')
-    .insert({
-      family_id: input.familyId,
-      child_user_id: input.childUserId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      note: input.note,
-    })
-    .select(COLUMNS.sosEvent)
-    .single();
+/** What a stored SOS alert is confirmed to contain, without reading the row back. */
+export interface SosSaved {
+  familyId: string;
+  childUserId: string;
+  note: string | null;
+  hasCoordinates: boolean;
+  createdAt: string;
+}
+
+/**
+ * Records an SOS alert for the signed-in child.
+ *
+ * Like `shareLocation`, this must not read the row back: `sos_events` SELECT is parent
+ * only, so a representation read would fail and the UI would tell a child in an emergency
+ * that the alert was not sent when it had been stored. The acknowledgement below is the
+ * only confirmation the database can give the writer.
+ */
+export async function raiseSos(client: SupabaseClient, input: NewSosInput): Promise<SosSaved> {
+  const createdAt = new Date().toISOString();
+
+  const { error } = await client.from('sos_events').insert({
+    family_id: input.familyId,
+    child_user_id: input.childUserId,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    note: input.note,
+  });
 
   if (error) fail(error, 'send this SOS alert');
-  return data as SosEventRow;
+  return {
+    familyId: input.familyId,
+    childUserId: input.childUserId,
+    note: input.note,
+    hasCoordinates: input.latitude !== null && input.longitude !== null,
+    createdAt,
+  };
 }
 
 export async function acknowledgeSos(
