@@ -16,11 +16,12 @@
 --
 -- PREREQUISITES
 --   1. supabase/audit/capture_current_definitions.sql has been run and its output saved.
---   2. The three helper functions exist: is_family_member(uuid), is_parent_in_family(uuid),
---      is_child_in_family(uuid, uuid). Verify with the capture script before applying.
---   3. create_family_invite / accept_family_invite are SECURITY DEFINER (section 3 of the
---      capture output). The existing parent-only invite policy and the safe column grants
---      are preserved; verify both before applying.
+--   2. Run 20261107_0002_helper_function_hardening.sql (read-only) and inspect all three
+--      helper bodies. If they are correct, apply 20261107_0003_helper_function_hardening_apply.sql
+--      after explicitly confirming the review gate in that file.
+--   3. create_family_invite / accept_family_invite are SECURITY DEFINER (capture output).
+--      The existing parent-only invite policy and safe column grants are preserved; verify
+--      both before applying this repair.
 --
 -- ROLLBACK
 --   supabase/rollback/20261107_0001_security_repair_rollback.sql
