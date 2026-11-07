@@ -40,7 +40,11 @@ export function keyRejectionReason(key: string): string | null {
     return 'SUPABASE_PUBLISHABLE_KEY looks like a service-role key. Use the publishable key only.';
   }
   // New Supabase publishable keys use this prefix and are safe for browser use.
-  if (trimmed.startsWith('sb_publishable_')) return null;
+  if (trimmed.startsWith('sb_publishable_')) {
+    return trimmed.length > 'sb_publishable_'.length
+      ? null
+      : 'SUPABASE_PUBLISHABLE_KEY is incomplete.';
+  }
 
   // Legacy anon keys are JWTs. Do not accidentally expose an authenticated or other
   // elevated JWT as the browser's project key.
