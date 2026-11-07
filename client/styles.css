@@ -648,3 +648,376 @@ button:focus-visible {
   padding: 2px 6px;
   border-radius: 6px;
 }
+
+/* ---------- Stage 2: layout utilities ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.row-gap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.block {
+  display: block;
+}
+
+.mono {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Stage 2: header and tabs ---------- */
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-name {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.family-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.family-switch select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+}
+
+.tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 9px 9px 0 0;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: rgba(47, 92, 246, 0.06);
+}
+
+.tab-active {
+  color: var(--accent);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 -2px 0 var(--accent) inset;
+}
+
+/* ---------- Stage 2: forms ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* ---------- Stage 2: banners, pills, notes ---------- */
+
+.banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.banner-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.banner-info {
+  border-left-color: var(--accent);
+  background: rgba(47, 92, 246, 0.07);
+}
+
+.banner-success {
+  border-left-color: var(--safe);
+  background: rgba(18, 133, 92, 0.08);
+}
+
+.banner-warn {
+  border-left-color: var(--warn);
+  background: rgba(180, 105, 14, 0.09);
+}
+
+.banner-neutral {
+  border-left-color: var(--border);
+  background: var(--bg);
+}
+
+.pill-info {
+  background: rgba(47, 92, 246, 0.12);
+  color: var(--accent);
+}
+
+.pill-success {
+  background: rgba(18, 133, 92, 0.12);
+  color: var(--safe);
+}
+
+.pill-warn {
+  background: rgba(180, 105, 14, 0.14);
+  color: var(--warn);
+}
+
+.pill-error {
+  background: rgba(198, 47, 66, 0.12);
+  color: var(--danger);
+}
+
+.pill-neutral {
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.note {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.note code {
+  font-size: 0.78rem;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+/* ---------- Stage 2: data rows, tokens, empty states ---------- */
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.9rem;
+}
+
+.data-row:last-of-type {
+  border-bottom: none;
+}
+
+.token {
+  display: block;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.empty-action {
+  display: block;
+  margin-top: 10px;
+}
+
+.skeleton-row {
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--bg), #eef2f9, var(--bg));
+  background-size: 200% 100%;
+  animation: skeleton-shift 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shift {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Stage 2: members ---------- */
+
+.member-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+
+/* ---------- Stage 2: chat ---------- */
+
+.msg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 78%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 12px;
+}
+
+.msg-own {
+  align-self: flex-end;
+  background: rgba(47, 92, 246, 0.09);
+  border-color: rgba(47, 92, 246, 0.28);
+}
+
+.msg-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.msg-sender {
+  font-weight: 700;
+}
+
+.msg-body {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.composer textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 44px;
+  max-height: 140px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.92rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* ---------- Stage 2: onboarding ---------- */
+
+.onboarding-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-head h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
