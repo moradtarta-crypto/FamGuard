@@ -62,7 +62,7 @@ A database or row-level security error is shown to the user; it is not treated a
 
 - Authentication: email/password, session persistence and email confirmation handling.
 - Families: explicit user-triggered calls to the existing `create_family`, `create_family_invite` and `accept_family_invite` RPCs.
-- Family chat: text messages, bounded newest-message loading, polling and read receipts. A family with no conversation requires the `ensure_family_conversation(uuid)` RPC; the app reports the database refusal if that RPC is unavailable and direct insertion is blocked by RLS.
+- Family chat: text messages, bounded newest-message loading, polling and read receipts. A family with no conversation requires the `ensure_family_conversation(uuid)` RPC; if it is missing, the app explains the required migration and does not attempt a direct INSERT blocked by RLS.
 - SOS: records the alert even if the browser cannot obtain coordinates; the UI warns when the alert was stored without location. Database write failures remain failures.
 - Location: browser geolocation and manual/polling refresh. This is not background tracking.
 - Zones: stored safe/danger zones and browser-side distance display. The database does not automatically evaluate entry/exit or generate geofence alerts.
