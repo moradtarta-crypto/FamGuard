@@ -193,7 +193,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await client.auth.signUp({
         email: input.email.trim(),
         password: input.password,
-        options: { data: { full_name: input.fullName.trim(), requested_role: input.requestedRole } },
+        options: {
+          emailRedirectTo: new URL('/', window.location.origin).toString(),
+          data: { full_name: input.fullName.trim(), requested_role: input.requestedRole },
+        },
       });
       if (error) return { error: error.message, info: null };
       if (!data.session) {
