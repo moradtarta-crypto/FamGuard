@@ -79,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         setSession(data.session);
+        cachedForUser.current = data.session?.user?.id ?? null;
         setClient(created);
       } catch (cause) {
         if (cancelled) return;
